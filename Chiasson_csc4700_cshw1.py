@@ -1,5 +1,9 @@
 #LLM Devlopment HW 1:
 
+import argparse
+import random
+
+
 # from collections import OrderedDict
 
 #Pseudo Code: 
@@ -116,19 +120,6 @@ Add template here to use for rest of code:
 
 
 """
- 
-
-
-
-
-
-
-
-
-
-
-
-
 
 #2. Tokenize it with .split (identify each word) / w/ for loop
 #3. add ^ into ordered set (no dupes, indexes) / key: value pair w/ index: value (string)
