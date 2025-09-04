@@ -81,6 +81,25 @@ class Model :
         nextWord = tokens[i + 1] # to track next word
 
         #dictionary handling (tracking frequency of words (has its shown up before, how many times?))
+        #add to frequency dict if not already there
+        if context not in self.frequency :
+          self.frequency[context] = {}
+
+        # add to nextWord count if not already there / start list of following words (at 0, first following word)
+        if nextWord not in self.frequency[context] :
+          self.frequency[context][nextWord] = 0 # add nextWord to dict, set count to 0 to start (more like initializing)
+        
+        self.frequency[context][nextWord] += 1 # add 1 to count of nextWord occuring after context(repeat if for loop)
+
+       #frequency Calculation
+       # top of equation:
+        wordCount = self.frequency[context][nextWord]
+
+      #bottom of equation (sum of counts)
+        sumCount = sum(self.frequency[context].values())
+
+        #probability equation:
+        self.probabilities[context][nextWord] = wordCount / sumCount
 
 
     if self.n == 3 :
@@ -89,9 +108,47 @@ class Model :
         context = (tokens[i], tokens[i + 1]) # use current and next word
         nextWord = tokens[i + 2] #to check 3rd word (trigram)
 
-   # quantify the probability that each word follows other words
+        # quantify the probability that each word follows other words / same logic as bigram
+        #dictionary handling (tracking frequency of words (has its shown up before, how many times?))
+        #add to frequency dict if not already there
+        if context not in self.frequency :
+          self.frequency[context] = {}
 
-  
+        # add to nextWord count if not already there / start list of following words (at 0, first following word)
+        if nextWord not in self.frequency[context] :
+          self.frequency[context][nextWord] = 0 # add nextWord to dict, set count to 0 to start (more like initializing)
+        
+        self.frequency[context][nextWord] += 1 # add 1 to count of nextWord occuring after context(repeat if for loop)
+
+        #Frequency Calculation
+       # top of equation:
+        wordCount = self.frequency[context][nextWord]
+
+      #bottom of equation (sum of counts)
+        sumCount = sum(self.frequency[context].values())
+
+        #probability equation:
+        self.probabilities[context][nextWord] = wordCount / sumCount
+
+
+
+    def predict_next_word(input, deterministic) :
+      """
+        Args:
+          input: 
+            -tuple
+            -contains one or two prior words ( 1 for bigram, 2 for trigram)
+          deterministic:
+                        -Boolean Flag
+                        -defaults to False
+                        -use input to sample the next word from probability distribution from training (pick highest % prob from above in order)
+                        if True:
+                            - always sample HIGHEST probability next word (greedy sampling ^^)
+                        if False:
+                            -randomly sample the token using probability distribution itself (categorial sampling) (?) 
+                        ^^(Tip: use random.choices function(import random) for sampling (used in rock paper scissors game))
+      """
+      pass
 
 
 
