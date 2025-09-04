@@ -2,6 +2,7 @@
 
 import argparse
 import random
+import re
 
 
 # from collections import OrderedDict
@@ -19,7 +20,7 @@ import random
                 init instance vars here
                 n is int (2 or 3 based on trigram or bigram)
 
-            def train() :
+            def train(string arg) :
                 function work
                 accepts one positional argument (a string of data for the model to be trained on)
                 split (.split() or re.split()) string into seperate words (punctuation are seperate words (learn more))
@@ -46,6 +47,61 @@ import random
                 -must detect when user asks to run predict on word that isn't in vocabulary/ print out error message (input validation)
                 (maybe use re.findall or re.search (if false, give error message))
 """
+#Write a python class for bigram / trigram model that can be trained on a string of data:
+class Model :
+  def __init__(self, n) :
+      # do n validation here
+    if n != 2 and n != 3 :
+      raise ValueError("Value of n must equal to 2 or 3!")
+    else :
+      self.n = n
+
+    self.uniqueTokens = {} #Set for tracking unique words in text
+    self.frequency = {} #Dictionary tracking frequency of each word / setting key: val pair for calcs
+    self.probabilities = {} # Dictionary tracking the chances of word being next (key: val pair )
+ 
+  def train(self, corpus) :
+    #self.corpus = open(corpus, "r") This is for opening the file, handle elsewhhere, tthis handles the string gotten from that
+    
+    # split provided string into seperate words (using .findall / regex pattern / lowercase)
+    tokens = re.findall(r"\w+|[^\w\s]", corpus.lower()) #use when tracking location/ order of words (index of list)
+   
+   # identify the unique words in the corpus (using set)
+    uniqueTokens = set(tokens) #use when need unique words ()
+
+
+   # identify which other words can follow each unique word, and
+   # need to do version for bigram / trigram (1 or 2 prev words)
+
+   #bigram version
+    if self.n == 2 :
+      #loop/ iterate through length of tokens list, stop 1 from end (for i + 1 / "next" word)
+      for i in range (len(tokens) - 1) :
+        context = tokens[i] # use current word
+        nextWord = tokens[i + 1] # to track next word
+
+        #dictionary handling (tracking frequency of words (has its shown up before, how many times?))
+
+
+    if self.n == 3 :
+      #Similar, but stop 2 from end (trigram uses i + 2)
+      for i in range (len(tokens) - 2) :
+        context = (tokens[i], tokens[i + 1]) # use current and next word
+        nextWord = tokens[i + 2] #to check 3rd word (trigram)
+
+   # quantify the probability that each word follows other words
+
+  
+
+
+
+
+    # corpus = open("file.txt", "r")
+  #open / read file
+  # parse input with .split()
+  # loop ^ function for all words / chars within input file
+  #.close() file at end of function
+
 
 """
 #3: Command Line Interface w/ argparse library
