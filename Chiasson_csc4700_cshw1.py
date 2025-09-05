@@ -56,7 +56,7 @@ class Model :
     else :
       self.n = n
 
-    self.uniqueTokens = {} #Set for tracking unique words in text
+    self.uniqueTokens = set() #Set for tracking unique words in text
     self.frequency = {} #Dictionary tracking frequency of each word / setting key: val pair for calcs
     self.probabilities = {} # Dictionary tracking the chances of word being next (key: val pair )
  
@@ -87,7 +87,7 @@ class Model :
 
         # add to nextWord count if not already there / start list of following words (at 0, first following word)
         if nextWord not in self.frequency[context] :
-          self.frequency[context][nextWord] = 0 # add nextWord to dict, set count to 0 to start (more like initializing)
+          self.frequency[context][nextWord] = 0 # add nextWord to dictionary, set count to 0 to start (more like initializing)
         
         self.frequency[context][nextWord] += 1 # add 1 to count of nextWord occuring after context(repeat if for loop)
 
@@ -131,8 +131,30 @@ class Model :
         self.probabilities[context][nextWord] = wordCount / sumCount
 
 
+  def predict_next_word(input, deterministic=False) :
 
-    def predict_next_word(input, deterministic) :
+    #input validation ( 2 or 3)
+    #take in user input, last 1 or 2 words (bi or tri gram)
+    # validae to make sure they're inside text, match needed length
+    # for bigram ^ just need 1, for trigram, require 2\
+    
+    #bigram validation
+    if n == 2 :
+      if len(input) < 1 :
+        print("Error Message: Need at least 1 word of context to run Bigram model!")
+      elif not all(word in uniqueTokens for word in input) :
+        print("one or more words are not found within training Corpus. Please try again.")
+      else :
+        pass
+      # allow prediciton
+
+    # trigram validation
+    if n == 3 :
+      if len(input) < 2 :
+        print("Error Message: Need at least 2 word of context to run Trigram model!")
+    
+    #make determinatoins based on ^ validation
+    
       """
         Args:
           input: 
@@ -148,7 +170,7 @@ class Model :
                             -randomly sample the token using probability distribution itself (categorial sampling) (?) 
                         ^^(Tip: use random.choices function(import random) for sampling (used in rock paper scissors game))
       """
-      pass
+      
 
 
 
@@ -186,6 +208,8 @@ class Model :
 
   e. (--word) String Argument
     - specifies the first word / words used for predict_ngram activity (?)
+
+    I assume ^^ is where we handle the tuple conversion / identifying lst 1(bi) or 2(tri) words in input and converting to tuple
 
   f. (--nwords) Int Argument
     - specifies the # of words to predict for the predict_ngram activity
