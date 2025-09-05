@@ -67,7 +67,7 @@ class Model :
     tokens = re.findall(r"\w+|[^\w\s]", corpus.lower()) #use when tracking location/ order of words (index of list)
    
    # identify the unique words in the corpus (using set)
-    uniqueTokens = set(tokens) #use when need unique words ()
+    self.uniqueTokens = set(tokens) #use when need unique words ()
 
 
    # identify which other words can follow each unique word, and
@@ -98,6 +98,8 @@ class Model :
       #bottom of equation (sum of counts)
         sumCount = sum(self.frequency[context].values())
 
+        if context not in self.probabilities :
+          self.probabilities[context] = {}
         #probability equation:
         self.probabilities[context][nextWord] = wordCount / sumCount
 
@@ -127,11 +129,13 @@ class Model :
       #bottom of equation (sum of counts)
         sumCount = sum(self.frequency[context].values())
 
+        if context not in self.probabilities :
+          self.probabilities[context] = {}
         #probability equation:
         self.probabilities[context][nextWord] = wordCount / sumCount
 
 
-  def predict_next_word(input, deterministic=False) :
+  def predict_next_word(self, input, deterministic=False) :
 
     #input validation ( 2 or 3)
     #take in user input, last 1 or 2 words (bi or tri gram)
@@ -139,21 +143,57 @@ class Model :
     # for bigram ^ just need 1, for trigram, require 2\
     
     #bigram validation
-    if n == 2 :
+    if self.n == 2 :
       if len(input) < 1 :
         print("Error Message: Need at least 1 word of context to run Bigram model!")
-      elif not all(word in uniqueTokens for word in input) :
-        print("one or more words are not found within training Corpus. Please try again.")
+      elif not all(word in self.uniqueTokens for word in input) :
+        print("Error Message: One or more words are not found within training Corpus. Please try again.")
       else :
-        pass
-      # allow prediciton
+        #prediction setup
+        context = input[-1]  #get context (tuple contents)
+        nextProbability = self.probabilities.get(context, {}) 
+
+        #Prediction context empty error handling
+        if not nextProbability :
+          print("Error Message: No predictions for this context.")
+
+        #Prediction Method handling
+        #Greedy
+        if deterministic:
+          nextWord = max(nextProbability, key=lambda word: nextProbability[word]) #find better way to write this
+          return nextWord
+        else : #random sample 
+          words = list(nextProbability.keys()) #creat list of valid words in context (to randomixe w/ .choices)
+          probabilities = list(nextProbability.values()) # get probability vals to act as weights
+
+          nextWord = random.choices(words, weights = probabilities, k=1)[0] #
+          return nextWord
+        #do prediction (other)
 
     # trigram validation
-    if n == 3 :
+    if self.n == 3 :
       if len(input) < 2 :
         print("Error Message: Need at least 2 word of context to run Trigram model!")
-    
-    #make determinatoins based on ^ validation
+      elif not all(word in self.uniqueTokens for word in input) :
+        print("Error Message: One or more words are not found within training Corpus. Please try again.")
+      else :
+        context = (input[-2], input[-1]) # get / use both words of input tuple(alr picked last 2 words from string)
+        nextProbability = self.probabilities.get(context, {})
+
+        #Prediction context empty error handling (just in case)
+        if not nextProbability :
+          print("Error Message: No predictions for this context.")
+
+        #Prediction Method handling
+        #Greedy
+        if deterministic :
+          nextWord = max(nextProbability, key=nextProbability.get)
+          return nextWord
+        else : #Random (weighted)
+          words = list(nextProbability.keys())
+          probabilities = list(nextProbability.values())
+          nextWord = random.choices(words, weights=probabilities, k=1)[0]
+          return nextWord
     
       """
         Args:
@@ -180,7 +220,6 @@ class Model :
   # parse input with .split()
   # loop ^ function for all words / chars within input file
   #.close() file at end of function
-
 
 """
 #3: Command Line Interface w/ argparse library
