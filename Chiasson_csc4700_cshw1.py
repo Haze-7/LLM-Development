@@ -1,6 +1,7 @@
 #LLM Devlopment HW 1:
 
 import argparse
+import pickle
 import random
 import re
 
@@ -10,6 +11,11 @@ import re
 #Pseudo Code: 
 
 #1. Read text file provided 
+corpusFile = "" # var for holding file path to ensure dynamic / get val from command line args
+
+open(corpusFile, "r")
+
+corpusFile.close() #be sure to close file at the end / may need to move down to end of class functions / make own method
 
 """
 #2. Write a python class for bigram / trigram model that can be trained on a string of data:
@@ -62,14 +68,12 @@ class Model :
  
   def train(self, corpus) :
     #self.corpus = open(corpus, "r") This is for opening the file, handle elsewhhere, tthis handles the string gotten from that
-    
+
     # split provided string into seperate words (using .findall / regex pattern / lowercase)
     tokens = re.findall(r"\w+|[^\w\s]", corpus.lower()) #use when tracking location/ order of words (index of list)
    
    # identify the unique words in the corpus (using set)
-    self.uniqueTokens = set(tokens) #use when need unique words ()
-
-
+    self.uniqueTokens = set(tokens) #use when need unique words
    # identify which other words can follow each unique word, and
    # need to do version for bigram / trigram (1 or 2 prev words)
 
@@ -195,32 +199,14 @@ class Model :
           nextWord = random.choices(words, weights=probabilities, k=1)[0]
           return nextWord
     
-      """
-        Args:
-          input: 
-            -tuple
-            -contains one or two prior words ( 1 for bigram, 2 for trigram)
-          deterministic:
-                        -Boolean Flag
-                        -defaults to False
-                        -use input to sample the next word from probability distribution from training (pick highest % prob from above in order)
-                        if True:
-                            - always sample HIGHEST probability next word (greedy sampling ^^)
-                        if False:
-                            -randomly sample the token using probability distribution itself (categorial sampling) (?) 
-                        ^^(Tip: use random.choices function(import random) for sampling (used in rock paper scissors game))
-      """
-      
 
+def main () :
+  parser = argparse.ArgumentParser(descripttion = "N-Gram Language Model") #create parser object
 
+  parser.add_argument("activity", choices=["train", "predict"], help = "Select Activity to perform on Model.")
+  
 
-
-    # corpus = open("file.txt", "r")
-  #open / read file
-  # parse input with .split()
-  # loop ^ function for all words / chars within input file
-  #.close() file at end of function
-
+  pass  
 """
 #3: Command Line Interface w/ argparse library
 
