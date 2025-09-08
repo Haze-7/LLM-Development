@@ -124,6 +124,7 @@ class Model :
         self.probabilities[context][nextWord] = wordCount / sumCount
 
 
+
   def predict_next_word(self, input, deterministic=False) :
     
     #bigram validation
@@ -210,7 +211,6 @@ def main () :
   #Activities Handling:
   args = parser.parse_args()
 
-  loadModel = args.load
   #Enforce Activity decision
   #Training Branch
   if args.activity == "train_ngram" :
@@ -218,10 +218,11 @@ def main () :
     #read file / corpus
     corpusPath = args.data #get corpus path (from user) / only in train_ngram
     nOrder = args.n #get user input n order (2 or 3) / only in train_ngram
+    savePath = args.save # get path to model / for use / load in predict_ngram
 
     #read corpus file:
-    with open(corpusPath, "r") as file :
-      corpus == file.read()
+    with open(corpusPath, "r", encoding="UTF-8") as file :
+      corpus = file.read()
 
     #run model
     model = Model(n = nOrder)
@@ -229,24 +230,48 @@ def main () :
     #run train method
     model.train(corpus)
 
+    if savePath :
+      with open(savePath, "wb") as file :
+        pickle.dump(model, file)
+
   #Prediction Branch
   elif args.activity == "predict_ngram" :
-    #greed or random decision
-    savePath = args.save # get path to model / only in predict_ngram
+    # greed or random decision?
     contextWords = args.word # gett first word/words to predict / only in predict_ngram
     numWords = args.nwords # get # of words to predict / onmly for predict_ngram
     deterministic = args.d # get deterministic flag decision
 
+    loadModel = args.load # gett t/ load saved model
+
+    #if missing, handle with error
+    if not loadModel :
+      raise ValueError("Error: Missing load file")
+      #replace w/ raise Custom Error (missing load file)
+
+
     #load /read model
     with open(loadModel, "rb") as modelFile : #"rb is read binary (need for pickle)"
       model = pickle.load(modelFile) 
+    prediction = []
+    currentContext = re.findall(r"w+|[^\w\s]", contextWords.lower())
 
-    #make prediction
-    prediction = model.predict(contextWords, numWords, deterministic)
+    for _ in range(numWords) : #do for the # of words needed
+      nextWord = model.predict_next_word(currentContext, deterministic) #make prediction
+
+      prediction.append(nextWord)
+      currentContext.append(nextWord)
+
+      #set context by n size (2 or 3)
+      if model.n == 2 :
+        currentContext = currentContext[-1:] #keep last word only
+      elif model.n == 3 :
+        currentContext = currentContext[-2:] #keep last 2 words only
 
     #Print Prediction to user:
     print("Prediction: ", prediction)
 
+if __name__ == "__main__":
+    main()
 """
 #3: Command Line Interface w/ argparse library
 
