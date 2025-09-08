@@ -156,13 +156,13 @@ def main() :
   parser.add_argument("--load", help = "Path to where trained ngram model is saved.")
 
   #e. A string argument (--word) that specifies the first word (or words) used for the “predict_ngram” activity.
-  parser.add_argument("--word", help = "Specifies the first word(or words) for the Prediction activity.")
+  parser.add_argument("--word", nargs='+', help = "Specifies the first word(or words) for the Prediction activity.")
 
   #f. An integer argument (--nwords) that specifies the number of words to predict for the “predict_ngram” activity.
   parser.add_argument("--nwords", type = int, help = "Specifies the number of words to predict for the Prediction activity.")
 
   #g. An integer arugment (--n) that specifies the order of the ngram (choices should be 2 or 3). 
-  parser.add_argument("--n", type = int, choices = [1, 2], help = "Select Order of the Ngram 2 (bi) or 3 (tri).")
+  parser.add_argument("--n", type = int, choices = [2, 3], help = "Select Order of the Ngram 2 (bi) or 3 (tri).")
 
   #h. An argument (--d) that set the deterministic flag for the predict_next_word() methodof of the ngram model to True.
   parser.add_argument("--d", action = "store_true", help = "Set the deterministic flag for Prediction Model.")
@@ -199,7 +199,7 @@ def main() :
       model = pickle.load(model_file) 
 
     prediction = []
-    current_context = re.findall(r"w+|[^\w\s]", context_words.lower())
+    current_context = re.findall(r"\w+|[^\w\s]", context_words.lower())
 
     for _ in range(num_words): 
       next_word = model.predict_next_word(current_context, deterministic) 
