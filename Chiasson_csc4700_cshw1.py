@@ -5,18 +5,6 @@ import pickle
 import random
 import re
 
-
-# from collections import OrderedDict
-
-#Pseudo Code: 
-
-#1. Read text file provided 
-corpusFile = "" # var for holding file path to ensure dynamic / get val from command line args
-
-open(corpusFile, "r")
-
-corpusFile.close() #be sure to close file at the end / may need to move down to end of class functions / make own method
-
 """
 #2. Write a python class for bigram / trigram model that can be trained on a string of data:
   a. class __init__ method :
@@ -67,15 +55,12 @@ class Model :
     self.probabilities = {} # Dictionary tracking the chances of word being next (key: val pair )
  
   def train(self, corpus) :
-    #self.corpus = open(corpus, "r") This is for opening the file, handle elsewhhere, tthis handles the string gotten from that
 
     # split provided string into seperate words (using .findall / regex pattern / lowercase)
     tokens = re.findall(r"\w+|[^\w\s]", corpus.lower()) #use when tracking location/ order of words (index of list)
    
    # identify the unique words in the corpus (using set)
     self.uniqueTokens = set(tokens) #use when need unique words
-   # identify which other words can follow each unique word, and
-   # need to do version for bigram / trigram (1 or 2 prev words)
 
    #bigram version
     if self.n == 2 :
@@ -140,11 +125,6 @@ class Model :
 
 
   def predict_next_word(self, input, deterministic=False) :
-
-    #input validation ( 2 or 3)
-    #take in user input, last 1 or 2 words (bi or tri gram)
-    # validae to make sure they're inside text, match needed length
-    # for bigram ^ just need 1, for trigram, require 2\
     
     #bigram validation
     if self.n == 2 :
@@ -172,7 +152,6 @@ class Model :
 
           nextWord = random.choices(words, weights = probabilities, k=1)[0] #
           return nextWord
-        #do prediction (other)
 
     # trigram validation
     if self.n == 3 :
@@ -201,12 +180,73 @@ class Model :
     
 
 def main () :
-  parser = argparse.ArgumentParser(descripttion = "N-Gram Language Model") #create parser object
+  parser = argparse.ArgumentParser(description = "N-Gram Language Model") #create parser object
 
-  parser.add_argument("activity", choices=["train", "predict"], help = "Select Activity to perform on Model.")
-  
+  #a. Activity Selector
+  parser.add_argument("activity", type=str, choices=["train_ngram", "predict_ngram"], help = "Select Activity to perform on Model.")
 
-  pass  
+  #b. An argument (--data) that points to the path of training corpus.
+  parser.add_argument("--data", help="Points to path of training corpus.")   
+
+  #c. An argument (--save) that points to the path where the ngram or BPE model will be saved so that it can be loaded in 
+  parser.add_argument("--save", help="Path to where Model is saved to be loaded.")
+
+  #d. An argument (--load) that points to the path where the trained ngram model was saved.
+  parser.add_argument("--load", help="Path to where trained ngram model is saved.")
+
+  #e. A string argument (--word) that specifies the first word (or words) used for the “predict_ngram” activity.
+  parser.add_argument("--word", help="Specifies the first word(or words) for the Prediction activity.")
+
+  #f. An integer argument (--nwords) that specifies the number of words to predict for the “predict_ngram” activity.
+  parser.add_argument("--nwords", type=int, help="Specifies the number of words to predict for the Prediction activity.")
+
+  #g. An integer arugment (--n) that specifies the order of the ngram (choices should be 1 or 2). 
+  parser.add_argument("--n", type=int, choices=[1, 2], help="Select Order of the Ngram 2 (bi) or 3 (tri).")
+
+  #.An arugment (--d) that set the deterministic flag for the predict_next_word() methodof of the ngram model to True.
+  parser.add_argument("--d", action="store_true", help="Set the deterministic flag for Prediction Model.")
+
+
+  #Activities Handling:
+  args = parser.parse_args()
+
+  loadModel = args.load
+  #Enforce Activity decision
+  #Training Branch
+  if args.activity == "train_ngram" :
+    
+    #read file / corpus
+    corpusPath = args.data #get corpus path (from user) / only in train_ngram
+    nOrder = args.n #get user input n order (2 or 3) / only in train_ngram
+
+    #read corpus file:
+    with open(corpusPath, "r") as file :
+      corpus == file.read()
+
+    #run model
+    model = Model(n = nOrder)
+    
+    #run train method
+    model.train(corpus)
+
+  #Prediction Branch
+  elif args.activity == "predict_ngram" :
+    #greed or random decision
+    savePath = args.save # get path to model / only in predict_ngram
+    contextWords = args.word # gett first word/words to predict / only in predict_ngram
+    numWords = args.nwords # get # of words to predict / onmly for predict_ngram
+    deterministic = args.d # get deterministic flag decision
+
+    #load /read model
+    with open(loadModel, "rb") as modelFile : #"rb is read binary (need for pickle)"
+      model = pickle.load(modelFile) 
+
+    #make prediction
+    prediction = model.predict(contextWords, numWords, deterministic)
+
+    #Print Prediction to user:
+    print("Prediction: ", prediction)
+
 """
 #3: Command Line Interface w/ argparse library
 
