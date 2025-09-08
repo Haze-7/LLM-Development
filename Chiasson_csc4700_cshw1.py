@@ -164,7 +164,7 @@ def main() :
   #g. An integer arugment (--n) that specifies the order of the ngram (choices should be 2 or 3). 
   parser.add_argument("--n", type = int, choices = [1, 2], help = "Select Order of the Ngram 2 (bi) or 3 (tri).")
 
-  #.An arugment (--d) that set the deterministic flag for the predict_next_word() methodof of the ngram model to True.
+  #h. An argument (--d) that set the deterministic flag for the predict_next_word() methodof of the ngram model to True.
   parser.add_argument("--d", action = "store_true", help = "Set the deterministic flag for Prediction Model.")
 
   #Activities Handling:
