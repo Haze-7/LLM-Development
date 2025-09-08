@@ -5,353 +5,215 @@ import pickle
 import random
 import re
 
-"""
-#2. Write a python class for bigram / trigram model that can be trained on a string of data:
-  a. class __init__ method :
-        class Model: 
-            def __init__(n) :
-                function work
-                init instance vars here
-                n is int (2 or 3 based on trigram or bigram)
-
-            def train(string arg) :
-                function work
-                accepts one positional argument (a string of data for the model to be trained on)
-                split (.split() or re.split()) string into seperate words (punctuation are seperate words (learn more))
-                identify unique words in corpus (?)
-                identify which other words can follow unique word (?)
-                qualitfy the probability that each word follows other words (calc from formula / get %/ chance)
-            
-            def predict_next_word(input, deterministic) :
-                function work
-                Args:
-                    input: 
-                        -tuple
-                        -contains one or two prior words ( 1 for bigram, 2 for trigram)
-                    deterministic:
-                        -Boolean Flag
-                        -defaults to False
-                        -use input to sample the next word from probability distribution from training (pick highest % prob from above in order)
-                        if True:
-                            - always sample HIGHEST probability next word (greedy sampling ^^)
-                        if False:
-                            -randomly sample the token using probability distribution itself (categorial sampling) (?) 
-                        ^^(Tip: use random.choices function(import random) for sampling (used in rock paper scissors game))
-                
-                -must detect when user asks to run predict on word that isn't in vocabulary/ print out error message (input validation)
-                (maybe use re.findall or re.search (if false, give error message))
-"""
-#Write a python class for bigram / trigram model that can be trained on a string of data:
 class Model :
-  def __init__(self, n) :
-      # do n validation here
+   """N-Gram Language model with Bi-gram and Tri-gram functionality. """
+
+    
+   def __init__(self, n):
+    """
+    Initialize model with n-gram order.
+
+    Arguments:
+      n (int): Must be 2 (bigram) or 3 (trigram).
+
+    """
     if n != 2 and n != 3 :
-      raise ValueError("Value of n must equal to 2 or 3!")
+      raise ValueError("Value of n must equal to 2 or 3.")
     else :
       self.n = n
 
-    self.uniqueTokens = set() #Set for tracking unique words in text
-    self.frequency = {} #Dictionary tracking frequency of each word / setting key: val pair for calcs
-    self.probabilities = {} # Dictionary tracking the chances of word being next (key: val pair )
+    self.unique_tokens = set() 
+    self.frequency = {} 
+    self.probabilities = {}
  
-  def train(self, corpus) :
 
-    # split provided string into seperate words (using .findall / regex pattern / lowercase)
-    tokens = re.findall(r"\w+|[^\w\s]", corpus.lower()) #use when tracking location/ order of words (index of list)
+   def train(self, corpus):
+    """
+    Train n-gram model on provided text corpus.
+    
+    Arguments:
+      corpus (str): Input text for training.
+    """
+    tokens = re.findall(r"\w+|[^\w\s]", corpus.lower())
    
-   # identify the unique words in the corpus (using set)
-    self.uniqueTokens = set(tokens) #use when need unique words
+    self.unique_tokens = set(tokens) 
 
-   #bigram version
     if self.n == 2 :
-      #loop/ iterate through length of tokens list, stop 1 from end (for i + 1 / "next" word)
-      for i in range (len(tokens) - 1) :
-        context = tokens[i] # use current word
-        nextWord = tokens[i + 1] # to track next word
+      for i in range (len(tokens) - 1):
+        context = tokens[i] 
+        next_word = tokens[i + 1] 
 
-        #dictionary handling (tracking frequency of words (has its shown up before, how many times?))
-        #add to frequency dict if not already there
-        if context not in self.frequency :
+        if context not in self.frequency:
           self.frequency[context] = {}
 
-        # add to nextWord count if not already there / start list of following words (at 0, first following word)
-        if nextWord not in self.frequency[context] :
-          self.frequency[context][nextWord] = 0 # add nextWord to dictionary, set count to 0 to start (more like initializing)
+        if next_word not in self.frequency[context]:
+          self.frequency[context][next_word] = 0 
         
-        self.frequency[context][nextWord] += 1 # add 1 to count of nextWord occuring after context(repeat if for loop)
+        self.frequency[context][next_word] += 1 
 
-       #frequency Calculation
-       # top of equation:
-        wordCount = self.frequency[context][nextWord]
+        word_count = self.frequency[context][next_word]
 
-      #bottom of equation (sum of counts)
-        sumCount = sum(self.frequency[context].values())
+        sum_count = sum(self.frequency[context].values())
 
         if context not in self.probabilities :
           self.probabilities[context] = {}
-        #probability equation:
-        self.probabilities[context][nextWord] = wordCount / sumCount
 
+        self.probabilities[context][next_word] = word_count / sum_count
 
     if self.n == 3 :
-      #Similar, but stop 2 from end (trigram uses i + 2)
-      for i in range (len(tokens) - 2) :
-        context = (tokens[i], tokens[i + 1]) # use current and next word
-        nextWord = tokens[i + 2] #to check 3rd word (trigram)
+      for i in range (len(tokens) - 2):
+        context = (tokens[i], tokens[i + 1]) 
+        next_word = tokens[i + 2]
 
-        # quantify the probability that each word follows other words / same logic as bigram
-        #dictionary handling (tracking frequency of words (has its shown up before, how many times?))
-        #add to frequency dict if not already there
-        if context not in self.frequency :
+        if context not in self.frequency:
           self.frequency[context] = {}
 
-        # add to nextWord count if not already there / start list of following words (at 0, first following word)
-        if nextWord not in self.frequency[context] :
-          self.frequency[context][nextWord] = 0 # add nextWord to dict, set count to 0 to start (more like initializing)
+       
+        if next_word not in self.frequency[context]:
+          self.frequency[context][next_word] = 0 
         
-        self.frequency[context][nextWord] += 1 # add 1 to count of nextWord occuring after context(repeat if for loop)
+        self.frequency[context][next_word] += 1 
 
-        #Frequency Calculation
-       # top of equation:
-        wordCount = self.frequency[context][nextWord]
+        word_count = self.frequency[context][next_word]
 
-      #bottom of equation (sum of counts)
-        sumCount = sum(self.frequency[context].values())
+        sum_count = sum(self.frequency[context].values())
 
         if context not in self.probabilities :
           self.probabilities[context] = {}
-        #probability equation:
-        self.probabilities[context][nextWord] = wordCount / sumCount
+
+        self.probabilities[context][next_word] = word_count / sum_count
 
 
-
-  def predict_next_word(self, input, deterministic=False) :
+   def predict_next_word(self, input, deterministic=False):
+    """
+    Predict the next word to follow context based on data gathered from training n-gram model.
     
-    #bigram validation
-    if self.n == 2 :
-      if len(input) < 1 :
+    Arguments:
+      input (tuple): Contains one (bigram) or two (trigram) prior words for predictions.
+      deterministic (boolean flag): Determines if the prediction samples the highest probability (greedy sampling) 
+                                    or if it randomly sasmples a token using the probability distribution 
+                                    (categorical sampling). Defaults to false.
+    """
+    if self.n == 2:
+      if len(input) < 1:
         print("Error Message: Need at least 1 word of context to run Bigram model!")
-      elif not all(word in self.uniqueTokens for word in input) :
+      elif not all(word in self.unique_tokens for word in input):
         print("Error Message: One or more words are not found within training Corpus. Please try again.")
       else :
-        #prediction setup
-        context = input[-1]  #get context (tuple contents)
-        nextProbability = self.probabilities.get(context, {}) 
+        context = input[-1] 
+        next_probability = self.probabilities.get(context, {}) 
 
-        #Prediction context empty error handling
-        if not nextProbability :
+        if not next_probability:
           print("Error Message: No predictions for this context.")
 
-        #Prediction Method handling
-        #Greedy
         if deterministic:
-          nextWord = max(nextProbability, key=lambda word: nextProbability[word]) #find better way to write this
-          return nextWord
-        else : #random sample 
-          words = list(nextProbability.keys()) #creat list of valid words in context (to randomixe w/ .choices)
-          probabilities = list(nextProbability.values()) # get probability vals to act as weights
+          next_word = max(next_probability, key = lambda word: next_probability[word]) 
+          return next_word
+        else : 
+          words = list(next_probability.keys()) 
+          probabilities = list(next_probability.values())
 
-          nextWord = random.choices(words, weights = probabilities, k=1)[0] #
-          return nextWord
+          next_word = random.choices(words, weights = probabilities, k = 1)[0] #
+          return next_word
 
-    # trigram validation
-    if self.n == 3 :
-      if len(input) < 2 :
+    if self.n == 3:
+      if len(input) < 2:
         print("Error Message: Need at least 2 word of context to run Trigram model!")
-      elif not all(word in self.uniqueTokens for word in input) :
+      elif not all(word in self.unique_tokens for word in input):
         print("Error Message: One or more words are not found within training Corpus. Please try again.")
       else :
-        context = (input[-2], input[-1]) # get / use both words of input tuple(alr picked last 2 words from string)
-        nextProbability = self.probabilities.get(context, {})
+        context = (input[-2], input[-1]) 
+        next_probability = self.probabilities.get(context, {})
 
-        #Prediction context empty error handling (just in case)
-        if not nextProbability :
+        if not next_probability :
           print("Error Message: No predictions for this context.")
 
-        #Prediction Method handling
-        #Greedy
         if deterministic :
-          nextWord = max(nextProbability, key=nextProbability.get)
-          return nextWord
-        else : #Random (weighted)
-          words = list(nextProbability.keys())
-          probabilities = list(nextProbability.values())
-          nextWord = random.choices(words, weights=probabilities, k=1)[0]
-          return nextWord
+          next_word = max(next_probability, key= next_probability.get)
+          return next_word
+        else : 
+          words = list(next_probability.keys())
+          probabilities = list(next_probability.values())
+          next_word = random.choices(words, weights = probabilities, k=1)[0]
+          return next_word
     
 
-def main () :
-  parser = argparse.ArgumentParser(description = "N-Gram Language Model") #create parser object
+def main() :
+  """Command Line Interface for training and running n-gram model """
+
+  parser = argparse.ArgumentParser(description = "N-Gram Language Model")
 
   #a. Activity Selector
-  parser.add_argument("activity", type=str, choices=["train_ngram", "predict_ngram"], help = "Select Activity to perform on Model.")
+  parser.add_argument("activity", type=str, choices = ["train_ngram", "predict_ngram"], help = "Select Activity to perform on Model.")
 
   #b. An argument (--data) that points to the path of training corpus.
-  parser.add_argument("--data", help="Points to path of training corpus.")   
+  parser.add_argument("--data", help = "Points to path of training corpus.")   
 
   #c. An argument (--save) that points to the path where the ngram or BPE model will be saved so that it can be loaded in 
-  parser.add_argument("--save", help="Path to where Model is saved to be loaded.")
+  parser.add_argument("--save", help = "Path to where Model is saved to be loaded.")
 
   #d. An argument (--load) that points to the path where the trained ngram model was saved.
-  parser.add_argument("--load", help="Path to where trained ngram model is saved.")
+  parser.add_argument("--load", help = "Path to where trained ngram model is saved.")
 
   #e. A string argument (--word) that specifies the first word (or words) used for the “predict_ngram” activity.
-  parser.add_argument("--word", help="Specifies the first word(or words) for the Prediction activity.")
+  parser.add_argument("--word", help = "Specifies the first word(or words) for the Prediction activity.")
 
   #f. An integer argument (--nwords) that specifies the number of words to predict for the “predict_ngram” activity.
-  parser.add_argument("--nwords", type=int, help="Specifies the number of words to predict for the Prediction activity.")
+  parser.add_argument("--nwords", type = int, help = "Specifies the number of words to predict for the Prediction activity.")
 
-  #g. An integer arugment (--n) that specifies the order of the ngram (choices should be 1 or 2). 
-  parser.add_argument("--n", type=int, choices=[1, 2], help="Select Order of the Ngram 2 (bi) or 3 (tri).")
+  #g. An integer arugment (--n) that specifies the order of the ngram (choices should be 2 or 3). 
+  parser.add_argument("--n", type = int, choices = [1, 2], help = "Select Order of the Ngram 2 (bi) or 3 (tri).")
 
   #.An arugment (--d) that set the deterministic flag for the predict_next_word() methodof of the ngram model to True.
-  parser.add_argument("--d", action="store_true", help="Set the deterministic flag for Prediction Model.")
-
+  parser.add_argument("--d", action = "store_true", help = "Set the deterministic flag for Prediction Model.")
 
   #Activities Handling:
   args = parser.parse_args()
 
-  #Enforce Activity decision
-  #Training Branch
-  if args.activity == "train_ngram" :
+  if args.activity == "train_ngram":
     
-    #read file / corpus
-    corpusPath = args.data #get corpus path (from user) / only in train_ngram
-    nOrder = args.n #get user input n order (2 or 3) / only in train_ngram
-    savePath = args.save # get path to model / for use / load in predict_ngram
+    corpus_path = args.data 
+    n_order = args.n
+    save_path = args.save 
 
-    #read corpus file:
-    with open(corpusPath, "r", encoding="UTF-8") as file :
+    with open(corpus_path, "r", encoding="UTF-8") as file:
       corpus = file.read()
 
-    #run model
-    model = Model(n = nOrder)
-    
-    #run train method
+    model = Model(n = n_order)
     model.train(corpus)
 
-    if savePath :
-      with open(savePath, "wb") as file :
+    if save_path :
+      with open(save_path, "wb") as file:
         pickle.dump(model, file)
 
-  #Prediction Branch
-  elif args.activity == "predict_ngram" :
-    # greed or random decision?
-    contextWords = args.word # gett first word/words to predict / only in predict_ngram
-    numWords = args.nwords # get # of words to predict / onmly for predict_ngram
-    deterministic = args.d # get deterministic flag decision
+  elif args.activity == "predict_ngram":
+    context_words = args.word 
+    num_words = args.nwords 
+    deterministic = args.d 
+    load_model = args.load 
 
-    loadModel = args.load # gett t/ load saved model
-
-    #if missing, handle with error
-    if not loadModel :
+    if not load_model :
       raise ValueError("Error: Missing load file")
-      #replace w/ raise Custom Error (missing load file)
 
+    with open(load_model, "rb") as model_file:
+      model = pickle.load(model_file) 
 
-    #load /read model
-    with open(loadModel, "rb") as modelFile : #"rb is read binary (need for pickle)"
-      model = pickle.load(modelFile) 
     prediction = []
-    currentContext = re.findall(r"w+|[^\w\s]", contextWords.lower())
+    current_context = re.findall(r"w+|[^\w\s]", context_words.lower())
 
-    for _ in range(numWords) : #do for the # of words needed
-      nextWord = model.predict_next_word(currentContext, deterministic) #make prediction
+    for _ in range(num_words): 
+      next_word = model.predict_next_word(current_context, deterministic) 
 
-      prediction.append(nextWord)
-      currentContext.append(nextWord)
+      prediction.append(next_word)
+      current_context.append(next_word)
 
-      #set context by n size (2 or 3)
-      if model.n == 2 :
-        currentContext = currentContext[-1:] #keep last word only
-      elif model.n == 3 :
-        currentContext = currentContext[-2:] #keep last 2 words only
+      if model.n == 2:
+        current_context = current_context[-1:] 
+      elif model.n == 3:
+        current_context = current_context[-2:] 
 
-    #Print Prediction to user:
-    print("Prediction: ", prediction)
+    print("Prediction:", " ".join(prediction))
+    
 
 if __name__ == "__main__":
     main()
-"""
-#3: Command Line Interface w/ argparse library
-
- Idea: allow the program to be interfaced / run from the terminal in custom fashion (allow traversal / selection)
-
-  a. (required) argument
-   -first positional (required) a arg should be a selector for which activity to perform
-   - options:
-    1. train_ngram 
-    2. predict_ngram
-
-  b. (--data) argument
-    - that points to the PATH(including filename and extension) to training data 
-    - only used if user select (train_ngram_ activity)
-
-  c. (--save) Argument
-    - points to the path where ngram or BPE model (depending on activity chosen) will be saved
-    -^ do so it can be loaded in predict_ngram activity (save training data to then convert / show in predictions)
-    - can be serialized and saved using pickle
-
-  d. (--load) Argument
-    - points to the PATH where the TRAINED ngram model was saved (above --save)
-    - model object can be loaded using pickle (learn)
-
-  e. (--word) String Argument
-    - specifies the first word / words used for predict_ngram activity (?)
-
-    I assume ^^ is where we handle the tuple conversion / identifying lst 1(bi) or 2(tri) words in input and converting to tuple
-
-  f. (--nwords) Int Argument
-    - specifies the # of words to predict for the predict_ngram activity
-    - (# of words to include in what is next likely i assume)
-
-  g. (--n) Int Argument
-    - specifies the order of the ngram 
-    - (choices: 1 or 2)
-    -only needed for train_ngram activity
-
-  h. (--d) Argument 
-    - set the deterministic flag for the next predict_next_word() method of ngram model to True
-    - only used for predict_ngram activity
-"""
-
-"""
-Plan out / think through the two activities:
-
-Activities:
-
-  1. train_ngram :
-    - Runs training of model
-
-    Uses:
-      -train() method
-      (--data) arg
-      (--n) arg
-
-  2. predict_ngram:
-    - Runs prediction alg(calc?) / display to user
-
-    Uses:
-      -predict_next_word() method
-      (--save) arg
-      (--word) arg
-      (--nwords) arg
-      (--d) arg
-
-"""
-
-"""
-4. Make sure to have proper comments / documentation 
-(check standard)
-Add template here to use for rest of code: 
-
-
-"""
-
-#2. Tokenize it with .split (identify each word) / w/ for loop
-#3. add ^ into ordered set (no dupes, indexes) / key: value pair w/ index: value (string)
-#4. return the set / set is tokens
-#5.  Do probablility / trigram / bigram formuala to calc frequency. 
-#   Higher the freq, goes first, then in order
-
-
