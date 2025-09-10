@@ -24,7 +24,9 @@ class Model :
 
     self.unique_tokens = set() 
     self.frequency = {} 
-    self.probabilities = {}
+    #seperate for trigram fallback functionality
+    self.probabilities_bigram = {}
+    self.probabilities_trigram = {}
  
 
    def train(self, corpus):
@@ -38,27 +40,27 @@ class Model :
    
     self.unique_tokens = set(tokens) 
 
-    if self.n == 2 :
-      for i in range (len(tokens) - 1):
-        context = tokens[i] 
-        next_word = tokens[i + 1] 
+    #always train for fallback handling 
+    for i in range (len(tokens) - 1):
+      context = tokens[i] 
+      next_word = tokens[i + 1] 
 
-        if context not in self.frequency:
-          self.frequency[context] = {}
+      if context not in self.frequency:
+        self.frequency[context] = {}
 
-        if next_word not in self.frequency[context]:
-          self.frequency[context][next_word] = 0 
+      if next_word not in self.frequency[context]:
+        self.frequency[context][next_word] = 0 
         
-        self.frequency[context][next_word] += 1 
+      self.frequency[context][next_word] += 1 
 
-        word_count = self.frequency[context][next_word]
+      word_count = self.frequency[context][next_word]
 
-        sum_count = sum(self.frequency[context].values())
+      sum_count = sum(self.frequency[context].values())
 
-        if context not in self.probabilities :
-          self.probabilities[context] = {}
+      if context not in self.probabilities_bigram :
+        self.probabilities_bigram[context] = {}
 
-        self.probabilities[context][next_word] = word_count / sum_count
+      self.probabilities_bigram[context][next_word] = word_count / sum_count
 
     if self.n == 3 :
       for i in range (len(tokens) - 2):
@@ -78,10 +80,10 @@ class Model :
 
         sum_count = sum(self.frequency[context].values())
 
-        if context not in self.probabilities :
-          self.probabilities[context] = {}
+        if context not in self.probabilities_trigram :
+          self.probabilities_trigram[context] = {}
 
-        self.probabilities[context][next_word] = word_count / sum_count
+        self.probabilities_trigram[context][next_word] = word_count / sum_count
 
 
    def predict_next_word(self, input, deterministic=False):
@@ -96,15 +98,15 @@ class Model :
     """
     if self.n == 2:
       if len(input) < 1:
-        print("Error Message: Need at least 1 word of context to run Bigram model!")
+        raise ValueError("Error Message: Need at least 1 word of context to run Bigram model!")
       elif not all(word in self.unique_tokens for word in input):
-        print("Error Message: One or more words are not found within training Corpus. Please try again.")
+        raise ValueError("Error Message: One or more words are not found within training Corpus. Please try again.")
       else :
         context = input[-1] 
-        next_probability = self.probabilities.get(context, {}) 
+        next_probability = self.probabilities_bigram.get(context, {}) 
 
         if not next_probability:
-          print("Error Message: No predictions for this context.")
+          raise RuntimeError("Error Message: No predictions for this context.")
 
         if deterministic:
           next_word = max(next_probability, key = lambda word: next_probability[word]) 
@@ -117,22 +119,22 @@ class Model :
           return next_word
 
     if self.n == 3:
-      if len(input) < 2:
-        print("Error Message: Need at least 2 word of context to run Trigram model!")
-      elif not all(word in self.unique_tokens for word in input):
-        print("Error Message: One or more words are not found within training Corpus. Please try again.")
+      # if len(input) < 2:
+      #   raise ValueError("Error Message: Need at least 2 word of context to run Trigram model!")
+      if not all(word in self.unique_tokens for word in input):
+        raise ValueError("Error Message: One or more words are not found within training Corpus.")
       else :
-        context = (input[-2], input[-1]) 
-        next_probability = self.probabilities.get(context, {})
-
-        if not next_probability :
-          #try bigram as backup instead
+        #normal context (>- 2 words)
+        if len(input) >= 2:
+          context = (input[-2], input[-1]) 
+          next_probability = self.probabilities_trigram.get(context, {})
+        else:
+          #bigram fallback
           context = input[-1]
-          next_probability = self.probabilities.get(context, {})
+          next_probability = self.probabilities_bigram.get(context, {})
 
-          #if still fails, then finally print error
-          if not next_probability:
-            print("Error Message: No predictions for this context.")
+        if not next_probability:
+            raise RuntimeError("Error Message: No predictions for this context.")
 
         if deterministic :
           next_word = max(next_probability, key= next_probability.get)
