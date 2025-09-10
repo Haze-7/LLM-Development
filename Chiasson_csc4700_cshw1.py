@@ -126,7 +126,13 @@ class Model :
         next_probability = self.probabilities.get(context, {})
 
         if not next_probability :
-          print("Error Message: No predictions for this context.")
+          #try bigram as backup instead
+          context = input[-1]
+          next_probability = self.probabilities.get(context, {})
+
+          #if still fails, then finally print error
+          if not next_probability:
+            print("Error Message: No predictions for this context.")
 
         if deterministic :
           next_word = max(next_probability, key= next_probability.get)
@@ -199,10 +205,13 @@ def main() :
       model = pickle.load(model_file) 
 
     prediction = []
-    current_context = re.findall(r"\w+|[^\w\s]", context_words.lower())
+    current_context = re.findall(r"\w+|[^\w\s]", " ".join(context_words).lower())
 
     for _ in range(num_words): 
       next_word = model.predict_next_word(current_context, deterministic) 
+
+      if next_word is None:
+        break
 
       prediction.append(next_word)
       current_context.append(next_word)
