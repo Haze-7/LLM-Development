@@ -64,7 +64,7 @@ class BPEAlgorithm:
     Method explanation
     """
 
-    def __innit__(self):
+    def __init__(self):
         """
         Method explain
         Arguments:
@@ -81,7 +81,57 @@ class BPEAlgorithm:
             corpus (str): Text data to train model on.
             k (int, optional): Number of iterations of the BPE loop to run. Defaults to 500.
         """
-        pass
+        tokens = re.findall(r"\w+", corpus.lower()) # process corpus into words / characters
+
+        # self.vocabulary = set(words) #unique set of full words
+
+        #build word-level vocab
+        self.vocabulary = {} # dictionary of words as characters, tied to frequency
+
+        for word in tokens:
+            chars = list(word) + ["</w>"] #split word into individual characters
+            key = " ".join(chars) # store as string w/ space seperation
+            self.vocabulary[key] = self.vocabulary.get(key, 0) + 1 # add / set tkeys    
+
+        #merge loop
+        for i in range(k):
+
+            pairs = {} #pairs
+
+            for word, frequency in self.vocabulary.items():
+                symbols = word.split()
+                
+                for j in range(len(symbols) - 1):
+                    pair = (symbols[j], symbols[j + 1])
+                    pairs[pair] = pairs.get(pair, 0) + frequency
+
+                if not pairs:
+                    break #???
+
+                #find most frequent pair
+                most_frequent = max(pairs, key = pairs.get)
+
+                #merge pair back into vocabulary
+                old_char = " ".join(most_frequent)
+                new_pair = " ".join(most_frequent)
+
+                updated_vocabulary = {}
+
+                for word, frequency in self.vocabulary.items():
+                    new_word = word.replace(old_char, new_pair)
+                    updated_vocabulary[new_word] = frequency
+
+                self.vocabulary = updated_vocabulary # update main vocabulary to match new changes            
+
+
+        #split text into chars
+
+
+        #loop throughh each token in vocab
+
+
+
+
 
     def tokenize(self, text):
         """
@@ -152,9 +202,7 @@ def main():
             pickle.load(algorithm_file)
 
         #handle the rest of the solving (hard part), depends on BPE model training above
-
-
-
+        #tokens = algorithm.tokenize(text)
 
 if __name__ == "__main__":
     main()
