@@ -31,32 +31,6 @@ import re
             return a Tuple containing 2 items:
                 1. tokens
                 2. token IDs that correspond to ^^
-
-
-3. Command Line Interface:
-
-required:
-    -first positional arg
-    -selector for which activity to perform (reuse)
-    options : train_bpe / tokenize
-
---data:
-    -poitns to path to training corpus
-    -only use in train (reuse)
-
---save:
-    points to path where model is saved (model.p)
-    -reuse from last
-    -save w/ pickle
-    -load in tookenize
-    Model: "datastructure that defines vocab"
-
---load:
-    -points to path of trained model (model.p)
-    - model object load w/ oickle
-
---text: (string arg)
-    - specifies the string to be tokenized in tokenize method
 """
 
 class BPEAlgorithm:
@@ -124,17 +98,8 @@ class BPEAlgorithm:
                     j += 1 #if no pair, go to next entry in line as normal(and add it to new list)
 
         tokens = updated_tokens
-
-
-
-        #split text into chars
-
-
-        #loop throughh each token in vocab
-
-
-
-
+        
+        return self.vocabulary
 
     def tokenize(self, text):
         """
@@ -146,9 +111,26 @@ class BPEAlgorithm:
         Returns:
             Tuple: Contains tokens and their corresponding tokenIDs.
         """
+        #Step 1. split into chars
+        tokens = list(text)
 
-        
-        pass
+        #2. try merging based on vocab
+        #use trained vocab (returned from train) to tokenize string)
+        trained_vocabulary = self.vocabulary
+
+        #merged order tracking:
+
+
+        #
+        for merge_token in list(self.vocabulary):
+            if len(merge_token) == 1: #skip over original single chars
+                continue
+            else:
+                pass# i assume do work
+            #now with ordered list, do work needed for fucntoin
+            
+            #may not be a bad idea to still make own list
+            #so, get only the 2 char merges ones (at end of list), give them their own list merged_tokens to use
 
         
 
