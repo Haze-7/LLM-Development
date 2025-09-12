@@ -81,47 +81,50 @@ class BPEAlgorithm:
             corpus (str): Text data to train model on.
             k (int, optional): Number of iterations of the BPE loop to run. Defaults to 500.
         """
-        tokens = re.findall(r"\w+", corpus.lower()) # process corpus into words / characters
+        #individual character tokenizer:
+        tokens = []
+        for char in corpus: 
+            tokens.append(char) # for each character in the text, add to tokens list (in order)
 
-        # self.vocabulary = set(words) #unique set of full words
+        self.vocabulary = set(tokens) #add trained data to unique set (training data)
 
-        #build word-level vocab
-        self.vocabulary = {} # dictionary of words as characters, tied to frequency
-
-        for word in tokens:
-            chars = list(word) + ["</w>"] #split word into individual characters
-            key = " ".join(chars) # store as string w/ space seperation
-            self.vocabulary[key] = self.vocabulary.get(key, 0) + 1 # add / set tkeys    
-
-        #merge loop
         for i in range(k):
 
-            pairs = {} #pairs
+            pair_counts = {} # dictionary to track pairs found and their counts
+            #identify pairs
+            for j in range(len(tokens) - 1):
+                pair = (tokens[j], tokens[j + 1]) # tuple of adjacent symbols
 
-            for word, frequency in self.vocabulary.items():
-                symbols = word.split()
-                
-                for j in range(len(symbols) - 1):
-                    pair = (symbols[j], symbols[j + 1])
-                    pairs[pair] = pairs.get(pair, 0) + frequency
+                #frequency adding (if in pair count, add 1 more, if not yet, create new entry)
+                if pair in pair_counts:
+                        pair_counts[pair] += 1
+                else:
+                        pair_counts[pair] = 1
 
-                if not pairs:
-                    break #???
+            #find most frequent pair / 2a.
+            most_frequent = max(pair_counts, key = pair_counts.get) # get the pairs, and their keys (the actual counts)
 
-                #find most frequent pair
-                most_frequent = max(pairs, key = pairs.get)
+            #merge pair to make new vocab entry (combined)
+            merged_pair = "".join(most_frequent) #merge into new pair 'a, b' -> "ab"
 
-                #merge pair back into vocabulary
-                old_char = " ".join(most_frequent)
-                new_pair = " ".join(most_frequent)
+            #add new pair to end of vocabulary set
+            self.vocabulary.add(merged_pair)
 
-                updated_vocabulary = {}
+            #do replacement of old tokens / new list to then copy to main list
+            updated_tokens = []
 
-                for word, frequency in self.vocabulary.items():
-                    new_word = word.replace(old_char, new_pair)
-                    updated_vocabulary[new_word] = frequency
+            j = 0
 
-                self.vocabulary = updated_vocabulary # update main vocabulary to match new changes            
+            while j < len(tokens): #iterate through tokens, added each one to populate new list
+                if j < len(tokens) - 1 and (tokens[j], tokens[j + 1]) == most_frequent: #if space and identify the most frequent pair, do replacement
+                    updated_tokens.append(merged_pair) #add new entry (in first of pair spot)
+                    j += 2 # skip over second char in pair, so its not included in new list
+                else:
+                    updated_tokens.append(tokens[j])
+                    j += 1 #if no pair, go to next entry in line as normal(and add it to new list)
+
+        tokens = updated_tokens
+
 
 
         #split text into chars
