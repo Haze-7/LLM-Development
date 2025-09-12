@@ -119,8 +119,7 @@ class Model :
           return next_word
 
     if self.n == 3:
-      # if len(input) < 2:
-      #   raise ValueError("Error Message: Need at least 2 word of context to run Trigram model!")
+
       if not all(word in self.unique_tokens for word in input):
         raise ValueError("Error Message: One or more words are not found within training Corpus.")
       else :
