@@ -119,20 +119,28 @@ class BPEAlgorithm:
         trained_vocabulary = self.vocabulary
 
         #merged order tracking:
-
-
-        #
         for merge_token in list(self.vocabulary):
             if len(merge_token) == 1: #skip over original single chars
                 continue
             else:
-                pass# i assume do work
-            #now with ordered list, do work needed for fucntoin
-            
-            #may not be a bad idea to still make own list
-            #so, get only the 2 char merges ones (at end of list), give them their own list merged_tokens to use
+                i = 0
+                while i < len(tokens):
+                    current_slice = tokens[i : i + len(merge_token)]
 
-        
+                    merge_characters = list(merge_token)
+
+                    if current_slice == merge_characters:
+                        tokens[i : i + len(merge_token)] = [merge_token]
+                        i += 1
+                    else:
+                        i += 1
+
+        #Step 3. map tokens to ID
+        vocab_list = list(trained_vocabulary)
+        token_ids = [vocab_list.index(t) for t in tokens]
+
+        return tokens, token_ids
+
 
 def main():
     """
@@ -162,7 +170,6 @@ def main():
 
     if args.activity == "train_bpe":
         corpus_path = args.data
-        text = args.text # may need to move to tokenize / sets strign to be used in tokenize so most likely here
         save_path = args.save
 
         with open(corpus_path, "r", encoding="UTF-8") as file:
@@ -178,16 +185,27 @@ def main():
 
     elif args.activity == "tokenize":
         load_algorithm = args.load
+        text = args.text 
         
         if not load_algorithm:
-            raise ValueError("Error: Missing Load/Training File")
+            raise ValueError("Error: Missing toad/training file.")
+        if not text: 
+            raise ValueError("Error: Missing text to tokenize.")
 
         #retrieve / load training file
         with open(load_algorithm, "rb") as algorithm_file:
-            pickle.load(algorithm_file)
+            algorithm = pickle.load(algorithm_file)
 
-        #handle the rest of the solving (hard part), depends on BPE model training above
-        #tokens = algorithm.tokenize(text)
+        tokens, token_ids = algorithm.tokenize(text)
+
+        print("Tokens:", tokens)
+        print("Token IDs:", token_ids)
+
+        #Train Example Command:
+        #python3 Chiasson_csc4700_cshw2.py train_bpe --data corpus.txt --save model.p
+
+        #Tokenize Example Command:
+        #python3 Chiasson_csc4700_csc4700_cshw2.py tokenize --text "The bright green Norwegian avocado was eaten by the whale!" --load model.p
 
 if __name__ == "__main__":
     main()
