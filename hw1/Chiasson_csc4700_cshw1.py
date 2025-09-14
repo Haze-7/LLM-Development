@@ -1,4 +1,11 @@
-#LLM Devlopment HW 1:
+"""
+LLM Development HW 1
+
+This program implements an n-gram language model using bigram and trigram functionality.
+Model operates with train() method to tokenize corpus and build dictionary and
+predict_next_word() method to implement greedy or categorical sampling approach.
+To run / interact with the program, a command line interface (CLI) is provided.
+"""
 
 import argparse
 import pickle
