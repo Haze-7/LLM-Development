@@ -1,7 +1,8 @@
 """
 LLM Development HW 1
 
-This program implements an n-gram language model using bigram and trigram functionality.
+This program implements an n-gram language model using bigram and trigram 
+functionality.
 Model operates with train() method to tokenize corpus and build dictionary and
 predict_next_word() method to implement greedy or categorical sampling approach.
 To run / interact with the program, a command line interface (CLI) is provided.
@@ -13,9 +14,10 @@ import random
 import re
 
 class Model :
-   """N-Gram Language model with Bi-gram and Tri-gram functionality. """
+   """
+   N-Gram Language model with Bi-gram and Tri-gram functionality. 
+   """
 
-    
    def __init__(self, n):
     """
     Initialize model with n-gram order.
@@ -99,15 +101,18 @@ class Model :
     
     Arguments:
       input (tuple): Contains one (bigram) or two (trigram) prior words for predictions.
-      deterministic (boolean flag): Determines if the prediction samples the highest probability (greedy sampling) 
-                                    or if it randomly sasmples a token using the probability distribution 
-                                    (categorical sampling). Defaults to false.
+      deterministic (boolean flag): Determines if the prediction samples the highest 
+      probability (greedy sampling) or if it randomly sasmples a token using the 
+      probability distribution(categorical sampling). Defaults to false.
     """
     if self.n == 2:
       if len(input) < 1:
         raise ValueError("Error Message: Need at least 1 word of context to run Bigram model!")
       elif not all(word in self.unique_tokens for word in input):
-        raise ValueError("Error Message: One or more words are not found within training Corpus. Please try again.")
+        raise ValueError(
+          "Error Message: One or more words are not found within training Corpus. " 
+          "Please try again."
+          )
       else :
         context = input[-1] 
         next_probability = self.probabilities_bigram.get(context, {}) 
@@ -128,7 +133,9 @@ class Model :
     if self.n == 3:
 
       if not all(word in self.unique_tokens for word in input):
-        raise ValueError("Error Message: One or more words are not found within training Corpus.")
+        raise ValueError(
+          "Error Message: One or more words are not found within training Corpus."
+          )
       else :
         #normal context (>- 2 words)
         if len(input) >= 2:
@@ -153,7 +160,9 @@ class Model :
     
 
 def main() :
-  """Command Line Interface for training and running n-gram model """
+  """
+  Command Line Interface for training and running n-gram model
+  """
 
   parser = argparse.ArgumentParser(description = "N-Gram Language Model")
 
