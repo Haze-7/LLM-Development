@@ -229,7 +229,7 @@ def main() :
       elif model.n == 3:
         current_context = current_context[-2:] 
 
-    print("Prediction:", " ".join(prediction))
+    print(" ".join(prediction))
     
 
 if __name__ == "__main__":
