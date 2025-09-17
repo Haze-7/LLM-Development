@@ -46,8 +46,10 @@ class BPEAlgorithm:
             2.
         """
         self.vocabulary = set()
+        self.convert_tokens_to_ids = {}
+        self.convert_ids_to_tokens = {}
 
-    def train(self, corpus, k = 500):
+    def train(self, corpus, k = 10):
         """
         Method Explain
 
@@ -98,7 +100,11 @@ class BPEAlgorithm:
                     j += 1 #if no pair, go to next entry in line as normal(and add it to new list)
 
             tokens = updated_tokens
-        
+
+        self.vocabulary_list = sorted(list(self.vocabulary))
+        self.convert_tokens_to_ids = {t: i for i, t in enumerate(self.vocabulary_list)}
+        self.convert_ids_to_tokens = {i: t for i, t in enumerate(self.vocabulary_list)}
+
         return self.vocabulary
 
     def tokenize(self, text):
@@ -136,8 +142,7 @@ class BPEAlgorithm:
                         i += 1
 
         #Step 3. map tokens to ID
-        vocabulary_list = sorted(list(trained_vocabulary))
-        token_ids = [vocabulary_list.index(t) for t in tokens]
+        token_ids = [self.convert_tokens_to_ids[t] for t in tokens]
 
         return tokens, token_ids
 
@@ -198,12 +203,8 @@ def main():
 
         tokens, token_ids = algorithm.tokenize(text)
 
-        # Convert back to txt
-        vocabulary_list = sorted(list(algorithm.vocabulary))
-        id_conversion = {i: t for i, t in enumerate(vocabulary_list)}
-
-        #convert IDss back to tokens
-        reconstruct_tokens = [id_conversion[token_id] for token_id in token_ids]
+        #Reconstruct Check
+        reconstruct_tokens = [algorithm.convert_ids_to_tokens[id] for id in token_ids]
 
         #rejoin tokens into string:
         reconstruct_text = "".join(reconstruct_tokens)
