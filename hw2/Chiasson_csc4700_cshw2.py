@@ -46,8 +46,20 @@ class BPEAlgorithm:
             2.
         """
         self.vocabulary = set()
+        self.vocabulary_list = []
         self.convert_tokens_to_ids = {}
         self.convert_ids_to_tokens = {}
+        """
+        Coding Note:
+        After noticing my code took a long time to train, I asked AI to identify
+        places where I could optimize.
+        AI suggested I make this persistent throughout project, as I previously 
+        created vocabulary list both in main() and in tokenize().
+        With this new method, I now create these all at once within train().
+        I then use them to convert the tokens to their token ID's within the 
+        tokenize() method, and then to convert those tokenId's back to their
+        tokens within main() to reduce repetition.
+        """
 
     def train(self, corpus, k = 10):
         """
@@ -117,12 +129,8 @@ class BPEAlgorithm:
         Returns:
             Tuple: Contains tokens and their corresponding tokenIDs.
         """
-        #Step 1. split into chars
+        #turn into list
         tokens = list(text)
-
-        #2. try merging based on vocab
-        #use trained vocab (returned from train) to tokenize string)
-        trained_vocabulary = self.vocabulary
 
         #merged order tracking:
         for merge_token in sorted(self.vocabulary, key=len, reverse=True): 
@@ -141,7 +149,7 @@ class BPEAlgorithm:
                     else:
                         i += 1
 
-        #Step 3. map tokens to ID
+        #map tokens to their id;s
         token_ids = [self.convert_tokens_to_ids[t] for t in tokens]
 
         return tokens, token_ids
