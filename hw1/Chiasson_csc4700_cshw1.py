@@ -121,14 +121,22 @@ class Model :
           raise RuntimeError("Error Message: No predictions for this context.")
 
         if deterministic:
-          next_word = max(next_probability, key = lambda word: next_probability[word]) 
-          return next_word
-        else : 
-          words = list(next_probability.keys()) 
-          probabilities = list(next_probability.values())
+            best_word = max(next_probability, key = next_probability.get)
 
-          next_word = random.choices(words, weights = probabilities, k = 1)[0] #
-          return next_word
+            # Avoid repeating last word if possible
+            if best_word == input[-1] and len(next_probability) > 1:
+                updated_probability = next_probability.copy()
+                updated_probability.pop(best_word)
+                next_word = max(updated_probability, key = updated_probability.get)
+            else:
+                next_word = best_word  # always assigned
+
+            return next_word
+        else : 
+            words = list(next_probability.keys())
+            probabilities = list(next_probability.values())
+            next_word = random.choices(words, weights = probabilities, k=1)[0]
+        return next_word
 
     if self.n == 3:
 
@@ -149,14 +157,23 @@ class Model :
         if not next_probability:
             raise RuntimeError("Error Message: No predictions for this context.")
 
-        if deterministic :
-          next_word = max(next_probability, key= next_probability.get)
-          return next_word
+        if deterministic:
+            best_word = max(next_probability, key = next_probability.get)
+
+            # Avoid repeating last word if possible
+            if best_word == input[-1] and len(next_probability) > 1:
+                updated_probability = next_probability.copy()
+                updated_probability.pop(best_word)
+                next_word = max(updated_probability, key = updated_probability.get)
+            else:
+                next_word = best_word  # always assigned
+
+            return next_word
         else : 
-          words = list(next_probability.keys())
-          probabilities = list(next_probability.values())
-          next_word = random.choices(words, weights = probabilities, k=1)[0]
-          return next_word
+            words = list(next_probability.keys())
+            probabilities = list(next_probability.values())
+            next_word = random.choices(words, weights = probabilities, k=1)[0]
+        return next_word
     
 
 def main() :
