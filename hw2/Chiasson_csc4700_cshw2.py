@@ -47,7 +47,7 @@ class BPEAlgorithm:
         """
         self.vocabulary = set()
 
-    def train(self, corpus, k = 10):
+    def train(self, corpus, k = 500):
         """
         Method Explain
 
