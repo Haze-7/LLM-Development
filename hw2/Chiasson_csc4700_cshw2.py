@@ -47,7 +47,7 @@ class BPEAlgorithm:
         """
         self.vocabulary = set()
 
-    def train(self, corpus, k = 500):
+    def train(self, corpus, k = 10):
         """
         Method Explain
 
@@ -97,7 +97,7 @@ class BPEAlgorithm:
                     updated_tokens.append(tokens[j])
                     j += 1 #if no pair, go to next entry in line as normal(and add it to new list)
 
-        tokens = updated_tokens
+            tokens = updated_tokens
         
         return self.vocabulary
 
@@ -198,18 +198,18 @@ def main():
 
         tokens, token_ids = algorithm.tokenize(text)
 
-        # Implement fix here:
+        # Convert back to txt
         vocabulary_list = list(algorithm.vocabulary)
         id_conversion = {i: t for i, t in enumerate(vocabulary_list)}
 
-        #convert Ids back to tokens
+        #convert IDss back to tokens
         reconstruct_tokens = [id_conversion[token_id] for token_id in token_ids]
 
         #rejoin tokens into string:
         reconstruct_text = "".join(reconstruct_tokens)
         
-        print("Reconstruct Tokens:", reconstruct_tokens)
-        print("Reconstruct Text:", reconstruct_text)
+        print("Reconstructed Tokens:", reconstruct_tokens)
+        print("Reconstructed Text:", reconstruct_text)
         
         # print("Tokens:", tokens)
         # print("Token IDs:", token_ids)
@@ -218,7 +218,7 @@ def main():
         #python3 Chiasson_csc4700_cshw2.py train_bpe --data corpus.txt --save model.p
 
         #Tokenize Example Command:
-        #python3 Chiasson_csc4700_cshw2.py tokenize --text "The bright green Norwegian avocado was eaten by the whale!" --load model.p
+        #python3 Chiasson_csc4700_cshw2.py tokenize --text 'The bright green Norwegian avocado was eaten by the whale!' --load model.p
 
 if __name__ == "__main__":
     main()
