@@ -119,7 +119,7 @@ class BPEAlgorithm:
         trained_vocabulary = self.vocabulary
 
         #merged order tracking:
-        for merge_token in list(self.vocabulary):
+        for merge_token in sorted(self.vocabulary, key=len, reverse=True): 
             if len(merge_token) == 1: #skip over original single chars
                 continue
             else:
@@ -136,8 +136,8 @@ class BPEAlgorithm:
                         i += 1
 
         #Step 3. map tokens to ID
-        vocab_list = list(trained_vocabulary)
-        token_ids = [vocab_list.index(t) for t in tokens]
+        vocabulary_list = sorted(list(trained_vocabulary))
+        token_ids = [vocabulary_list.index(t) for t in tokens]
 
         return tokens, token_ids
 
@@ -199,7 +199,7 @@ def main():
         tokens, token_ids = algorithm.tokenize(text)
 
         # Convert back to txt
-        vocabulary_list = list(algorithm.vocabulary)
+        vocabulary_list = sorted(list(algorithm.vocabulary))
         id_conversion = {i: t for i, t in enumerate(vocabulary_list)}
 
         #convert IDss back to tokens
