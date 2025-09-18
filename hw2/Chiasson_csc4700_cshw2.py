@@ -204,7 +204,7 @@ def main():
         #rejoin tokens into string:
         reconstruct_text = "".join(reconstruct_tokens)
         
-        print(reconstruct_tokens) #list of tokens (to show merge pairs.)
+        # print(reconstruct_tokens) #list of tokens (to show merge pairs.)
         print(reconstruct_text) # text reverted back to its initial string (to show proper reading/ conversion)
 
         #Train Example Command:
