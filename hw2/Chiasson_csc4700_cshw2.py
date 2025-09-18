@@ -188,7 +188,7 @@ def main():
         text = args.text 
         
         if not load_algorithm:
-            raise ValueError("Error: Missing toad/training file.")
+            raise ValueError("Error: Missing load/training file.")
         if not text: 
             raise ValueError("Error: Missing text to tokenize.")
 
@@ -199,7 +199,7 @@ def main():
         tokens, token_ids = algorithm.tokenize(text)
 
         #bring tokens back from Ids
-        reconstruct_tokens = [algorithm.convert_ids_to_tokens[tokens] for tokens in token_ids]
+        reconstruct_tokens = [algorithm.convert_ids_to_tokens[id] for id in token_ids]
 
         #rejoin tokens into string:
         reconstruct_text = "".join(reconstruct_tokens)
