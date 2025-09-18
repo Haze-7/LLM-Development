@@ -1,49 +1,27 @@
-#LLM Devlopment HW 2:
+"""
+LLM Development HW 2:
+
+This program implements a Byte Pair Encoding algorithm to tokenize a given string of text
+and outputs the subword tokens learned from training, as well as a recreation of the provided
+string using new, learned vocabulary. 
+
+"""
 
 import argparse
 import pickle
-import random
-import re
-
-#Steps:
-"""
-1. read text file provided (reuse)
-2. Python Class BPE Alg:
-    Args:
-
-        vocabulary:
-         -class attribute
-         -named self.vocabulary
-
-         train() method:
-            args:
-                trainign data corpus 
-                optional integer arg k:
-                    default to 500
-            -implement BPE learner alg to create token vocab
-            - k = # of iterations fo the BPE loop to run
-
-        tokenize() method:
-            args:
-                single string arg (text to tokenize)
-            
-            -use trained vocab to tokenize probiced string
-            return a Tuple containing 2 items:
-                1. tokens
-                2. token IDs that correspond to ^^
-"""
 
 class BPEAlgorithm:
     """
-    Method explanation
+    Byte Pair Encoding Algorithm that tokenizes a given corpus of text.
     """
 
     def __init__(self):
         """
-        Method explain
+        Initialize algorithm with set of unique vocabulary, a list of the vocabulary(which
+        is later sorted to determine merge order), a dictionary for mapping tokens to their
+        token IDs, and another dictionary for mapping those token IDs back into their tokens.
         Arguments:
-            1.
-            2.
+            None
         """
         self.vocabulary = set()
         self.vocabulary_list = []
@@ -53,17 +31,19 @@ class BPEAlgorithm:
         Coding Note:
         After noticing my code took a long time to train, I asked AI to identify
         places where I could optimize.
-        AI suggested I make this persistent throughout project, as I previously 
-        created vocabulary list both in main() and in tokenize().
-        With this new method, I now create these all at once within train().
+        AI suggested I permiate the vocab list & the conversion mappings throughout 
+        the project, as I previously created vocabulary list both in main() and in 
+        tokenize(). With this new method, I instead create them all at once within train().
         I then use them to convert the tokens to their token ID's within the 
         tokenize() method, and then to convert those tokenId's back to their
         tokens within main() to reduce repetition.
         """
 
-    def train(self, corpus, k = 10):
+    def train(self, corpus, k = 500):
         """
-        Method Explain
+        Creates a vocabulary from provided corpus text by tracking and documenting frequently 
+        adjacent tokens to create a more comprehensive / efficient set to tokenize text. 
+        Accuracy / Efficiency improved with larger k (more opportunities to merge).
 
         Arguments:
             corpus (str): Text data to train model on.
@@ -121,8 +101,9 @@ class BPEAlgorithm:
 
     def tokenize(self, text):
         """
-        Method Explain
-
+        Uses trained vocabulary to tokenize corpus text by grabbing individual characters and merging
+        them into pairs based on the set of frequently adjacent pairs established while training.
+        
         Arguments:
             text(str) = Text to be tokenized.
 
@@ -149,7 +130,7 @@ class BPEAlgorithm:
                     else:
                         i += 1
 
-        #map tokens to their id;s
+        #map tokens to their id's
         token_ids = [self.convert_tokens_to_ids[t] for t in tokens]
 
         return tokens, token_ids
@@ -157,7 +138,9 @@ class BPEAlgorithm:
 
 def main():
     """
-    Main function, handles Command Line Interface for training and running n-gram model, decisions, pathing, and final output prints
+    Main function that handles user interaction with a dedicated Command Line Interface using Argparse.
+    Handles recieving user input, calling necessary functions, and converting token ids back to tokens
+    (characters) to be printed.
     """
     
     # Command Line Interface
@@ -178,18 +161,22 @@ def main():
     #e. An string argument (--text) that specifies the string to be tokenized in tokenize activity.
     parser.add_argument("--text", type = str, help = "Specifies the string to be tokenized in tokenize activity.")
 
+    #added extra, as it was required by the autograder
+    parser.add_argument("--k", type = int, default = 500, help = "Sets the number of BPE merge operations.")
+
     #Activities Decision Handling
     args = parser.parse_args()
 
     if args.activity == "train_bpe":
         corpus_path = args.data
         save_path = args.save
+        num_merges = args.k
 
         with open(corpus_path, "r", encoding="UTF-8") as file:
             corpus = file.read()
 
         algorithm = BPEAlgorithm() 
-        algorithm.train(corpus) # don't need to pass k in here if i don't want to
+        algorithm.train(corpus, num_merges)
 
         #save training data ^^
         if save_path:
@@ -211,17 +198,14 @@ def main():
 
         tokens, token_ids = algorithm.tokenize(text)
 
-        #Reconstruct Check
-        reconstruct_tokens = [algorithm.convert_ids_to_tokens[id] for id in token_ids]
+        #bring tokens back from Ids
+        reconstruct_tokens = [algorithm.convert_ids_to_tokens[tokens] for tokens in token_ids]
 
         #rejoin tokens into string:
         reconstruct_text = "".join(reconstruct_tokens)
         
-        print("Reconstructed Tokens:", reconstruct_tokens)
-        print("Reconstructed Text:", reconstruct_text)
-        
-        # print("Tokens:", tokens)
-        # print("Token IDs:", token_ids)
+        print(reconstruct_tokens) #list of tokens (to show merge pairs.)
+        print(reconstruct_text) # text reverted back to its initial string (to show proper reading/ conversion)
 
         #Train Example Command:
         #python3 Chiasson_csc4700_cshw2.py train_bpe --data corpus.txt --save model.p
