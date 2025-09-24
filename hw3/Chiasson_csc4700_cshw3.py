@@ -4,8 +4,20 @@ LLM Development HW 3:
 Project Description
 
 """
+from openai import OpenAI
 from dotenv import load_dotenv
-import pydantic
+import os
+
+#load environmental variables
+load_dotenv('.env')
+# Or load_dotenv('../../.env')
+
+key = os.getenv("OPENAI_API_KEY")
+
+#establish client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
 
 
 """
