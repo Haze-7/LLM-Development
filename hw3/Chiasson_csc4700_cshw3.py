@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import os
 
 #load environmental variables
-load_dotenv('.env')
+load_dotenv('../../.env')
 # Or load_dotenv('../../.env')
 
 key = os.getenv("OPENAI_API_KEY")
@@ -67,3 +67,16 @@ At bottom of INstructions
 
 
 """
+
+#Extract first 500 questions/ answers
+#if == is_impossible, skip
+#iterate through, get file
+
+class read():
+
+    def __init__():
+        pass
+    
+
+def main():
+    pass
