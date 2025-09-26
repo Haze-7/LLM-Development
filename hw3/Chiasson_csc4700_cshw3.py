@@ -4,6 +4,7 @@ LLM Development HW 3:
 Project Description
 
 """
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
@@ -70,6 +71,8 @@ At bottom of INstructions
 
 #Extract first 500 questions/ answers
 #if == is_impossible, skip
+
+
 #iterate through, get file
 
 class read():
@@ -79,4 +82,47 @@ class read():
     
 
 def main():
-    pass
+
+#load dataset
+    with open("dev-v2.0.json", "r") as file:
+        dataset = json.load(file)
+    
+    def get_questions(dataset):
+        questions = [] #list of questions pulled from dataset
+
+        for entry in dataset["data"]:
+            for paragraph in entry["paragraphs"]:
+                for qa in paragraph["qas"]:
+                    if not qa.get("is_impossible", False): #skip if is_impossible == False
+                        questions.append({"id": qa["id"], "question": qa["question"] }) #add entry to new list
+                        if len(questions) >= 500:
+                            return questions
+        return questions # in case dataset is smaller than 500 entries (maybe get rid of )
+    
+    #call:
+    question_set = get_questions(dataset)
+
+    #NEXT, prepare batch file
+
+    with open("output_file", "w") as file:
+        for question in question_set:
+            line = {
+                "custom_id:": question["id"],
+                "method": "POST",
+                "url": "v1/chat/completions", #may change
+                "body": {
+                    "model": "gpt-5-nano",
+                    "reasoning": {"effort": "minimal"}, #change later may be different
+                    "messages": [
+                        {"role": "developer", "content": "Explain Bot Role / Question"}, #Update with proper question
+                        {"role": "user", "content": question["question"]},                       
+                    ]
+                }
+            }
+            file.write(json.dumps(line) + "\n") #dump / output (change later)
+            #link to docs
+            #current: https://platform.openai.com/docs/guides/batch
+
+            #from class:
+            #https://platform.openai.com/docs/api-reference/batch/create
+            #https://platform.openai.com/docs/overview
