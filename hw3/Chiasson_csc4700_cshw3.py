@@ -120,6 +120,60 @@ def main():
                 }
             }
             file.write(json.dumps(line) + "\n") #dump / output (change later)
+
+
+    #Next, upload .jsonl file to openAi/ store file ID
+    client = OpenAI()
+
+    batch_file = client.files.create(
+        file = open("output_file", "rb"),
+        purpose="batch"
+    )
+
+    file_id = batch_file.id
+
+    #create/ setup tracker file
+    tracker_file = "tracker_file.json"
+    #create /set tracker data format/structure
+    tracker_data = {"input_file_id": file_id}
+
+    #write to file /
+    with open (tracker_file, "w") as track_file:
+        json.dump(tracker_data, track_file, indent = 2)
+
+    #print("File ID:", file_id)
+
+
+    #Next, create batch job
+    #load file_id from tracker file
+    with open(tracker_file, "r") as track_file:
+        tracker_data = json.load(track_file)
+
+    #setup / useable for batch job
+    input_file_id = tracker_data["input_file_id"]
+
+    #now, create batch job
+    batch_job = client.batches.create(
+        input_file_id = input_file_id,
+        endpoint="/v1/chat/completions",
+        completion_window = "24h",
+        metadata = {
+            "description": "GPT-5 Nano HW3 Batch Job",
+        }
+    )
+
+    #include/ add batch job Id in tracker file
+    tracker_data["batch_job_id"] = batch_job.id
+
+    #write to / update tracker file
+    with open (tracker_file, "w") as track_file:
+        json.dump(tracker_data, track_file, indent = 2)
+
+
+    #track / check batch job status:
+    batch = client.batches.retrieve(batch_job.id)
+    #print("Batch Job Status:", batch.status) #or just batch?
+
             #link to docs
             #current: https://platform.openai.com/docs/guides/batch
 
