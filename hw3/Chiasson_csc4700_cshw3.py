@@ -211,8 +211,14 @@ class APIModels():
                     for line in batch_results_file:
                         result_line = (json.loads(line)) #each line of results file (get data)
                         question_id = result_line.get("custom_id")
-                        choices = result_line["response"]["choices"]
-                        answer = choices[0]["message"]["content"] if choices else None
+                        
+                        #handle multiple choice questions / answers errors
+                        response = result_line.get("response")
+                        if response and "choices" in response and len(response["choices"]) > 0:
+                            answer = response["choices"][0]["message"]["content"]
+                        else:
+                            answer = None
+
                         question_text = id_to_question.get(question_id)
 
                         results.append({
