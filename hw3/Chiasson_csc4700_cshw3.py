@@ -111,7 +111,7 @@ class APIModels():
                     "url": "/v1/chat/completions", #may change
                     "body": {
                         "model": "gpt-5-nano",
-                        "reasoning_effort": "minimal",
+                        #"reasoning_effort": "minimal",
                         "messages": [
                             {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #Update with proper question
                             {"role": "user", "content": question["question"]},
@@ -193,11 +193,13 @@ class APIModels():
 
                 #save to local file (suggested by documentation)
 
-                #AI Suggestion(some versions return bytes, others string, so handle both just in case)
-                mode = "wb" if isinstance(batch_results, bytes) else "w"
-                with open("batch_results.jsonl", mode) as batch_results_file: 
-                    batch_results_file.write(batch_results)
-                        
+                if hasattr(batch_results, "read"):
+                    batch_results_data = batch_results.read()
+                else:
+                    batch_results_data = bytes(batch_results)
+
+                with open("batch_results.jsonl", "wb") as batch_results_file:
+                    batch_results_file.write(batch_results_data)
                         
                 #get question text (create dictionary from original set to get question text from ID) (for display purposes)
                 id_to_question = {q["id"]: q["question"] for q in question_set}
@@ -205,16 +207,12 @@ class APIModels():
                 #finally, parse results file to get answers
                 results = []
 
-                
                 with open("batch_results.jsonl", "r") as batch_results_file:
                     for line in batch_results_file:
                         result_line = (json.loads(line)) #each line of results file (get data)
-
                         question_id = result_line.get("custom_id")
                         choices = result_line["response"]["choices"]
                         answer = choices[0]["message"]["content"] if choices else None
-
-
                         question_text = id_to_question.get(question_id)
 
                         results.append({
@@ -233,7 +231,7 @@ class APIModels():
                 print("Batch job was cancelled.")
             elif batch_status == "expired":
                 print("Batch job ran out of time and expired.")
-            else: #make == in_progress?
+            else: 
                 print("Batch job is still in progress. Current status:", batch_status)
                 
             time.sleep(20)  # Sleep for 20 seconds before checking again
