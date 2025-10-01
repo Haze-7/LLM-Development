@@ -75,7 +75,7 @@ At bottom of INstructions
 class APIModels():
 
     def __init__(self):
-        self.client = OpenAI()
+        self.client = OpenAI(api_key = key)
 
     def get_questions(self, dataset_path = "dev-v2.0.json", limit = 500):
 
@@ -103,18 +103,18 @@ class APIModels():
 
 
         #NEXT, prepare batch file
-        with open("output_file", "w") as file:
+        with open("batch_input_file", "w") as file:
             for question in question_set:
                 line = {
                     "custom_id": question["id"],
                     "method": "POST",
-                    "url": "v1/chat/completions", #may change
+                    "url": "/v1/chat/completions", #may change
                     "body": {
                         "model": "gpt-5-nano",
-                        "reasoning": {"effort": "minimal"}, #change later may be different
+                        "reasoning_effort": "minimal",
                         "messages": [
-                            {"role": "developer", "content": "Explain Bot Role / Question"}, #Update with proper question
-                            {"role": "user", "content": question["question"]},                       
+                            {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #Update with proper question
+                            {"role": "user", "content": question["question"]},
                         ]
                     }
                 }
@@ -125,7 +125,7 @@ class APIModels():
         #client = OpenAI()
 
         batch_file = self.client.files.create(
-            file = open("output_file", "rb"),
+            file = open("batch_input_file", "rb"),
             purpose="batch"
         )
 
@@ -139,9 +139,6 @@ class APIModels():
         #write to file /
         with open (tracker_file, "w") as track_file:
             json.dump(tracker_data, track_file, indent = 2)
-
-        #print("File ID:", file_id)
-
 
         #Next, create batch job
         #load file_id from tracker file
@@ -176,7 +173,18 @@ class APIModels():
 
         #make periodic with while loop (sleep for 60 seconds)
         while True:
+
+            batch_job = self.client.batches.retrieve(batch_job.id) #update batch job status
+            batch_status = batch_job.status
+
             if batch_status == "completed":
+                output_file_id = batch_job.output_file_id
+
+                if not output_file_id:
+                    print("Batch job completed, waiting for output File...")
+                    time.sleep(20)
+                    continue
+
                 print("Batch job completed successfully.") # move on from here, may drop to end
                 #get results / output
 
@@ -228,7 +236,7 @@ class APIModels():
             else: #make == in_progress?
                 print("Batch job is still in progress. Current status:", batch_status)
                 
-            time.sleep(60)  # Sleep for 60 seconds before checking again
+            time.sleep(20)  # Sleep for 20 seconds before checking again
 
 def main():
         API = APIModels()
