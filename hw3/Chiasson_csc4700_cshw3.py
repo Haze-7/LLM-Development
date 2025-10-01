@@ -75,9 +75,16 @@ At bottom of INstructions
 class APIModels():
 
     def __init__(self):
-        self.client = OpenAI()
+        self.client = OpenAI(api_key = key)
 
     def get_questions(self, dataset_path = "dev-v2.0.json", limit = 500):
+        """
+        Traverse / Convert data set to workable .jsonl file for batch/ other api functionality
+
+        Arguments:
+        dataset_path: The path / name of the dataset to be used/analyzed.
+        limit: # of questions to consider (excluding impossible questions) 
+        """
 
         #load dataset
         with open(dataset_path, "r") as file:
@@ -95,6 +102,15 @@ class APIModels():
         return questions # in case dataset is smaller than 500 entries (maybe get rid of )
 
     def gpt5_nano_batch(self, limit = 500):
+        """
+        Run / Monitor API call to gpt5-nano in batch configuration.
+
+        Arguments:
+        limit: 
+
+        Source Used:
+        https://platform.openai.com/docs/guides/batch
+        """
         
         #retreieve question set from get_questions method
         question_set = self.get_questions(limit = limit)
@@ -103,17 +119,19 @@ class APIModels():
 
 
         #NEXT, prepare batch file
-        with open("output_file", "w") as file:
+        with open("batch_input_file", "w") as file:
             for question in question_set:
                 line = {
                     "custom_id": question["id"],
                     "method": "POST",
-                    "url": "v1/chat/completions", #may change
+                    "url": "/v1/chat/completions", #may change
                     "body": {
                         "model": "gpt-5-nano",
-                        "reasoning": {"effort": "minimal"}, #change later may be different
+                        "reasoning_effort": "minimal", #change later may be different
                         "messages": [
-                            {"role": "developer", "content": "Explain Bot Role / Question"}, #Update with proper question
+                            {"role": "developer", 
+                             "content": "You will be given a set of questions from the user. Your job is to answer these questions, "
+                             "or choose the best answer from a multiple choice selection. Please do so, and return your answer for each question to the user."}, #update if not applicable / accurate results
                             {"role": "user", "content": question["question"]},                       
                         ]
                     }
@@ -125,7 +143,7 @@ class APIModels():
         #client = OpenAI()
 
         batch_file = self.client.files.create(
-            file = open("output_file", "rb"),
+            file = open("batch_input_file", "rb"),
             purpose="batch"
         )
 
@@ -169,14 +187,25 @@ class APIModels():
             json.dump(tracker_data, track_file, indent = 2)
 
 
-        #track / check batch job status:
+        #track / check batch job status: (initial / first time (may remove / redundant with loop below))
         batch_job = self.client.batches.retrieve(batch_job.id)
         batch_status = batch_job.status # get status for selected batch job ( by id)
         print("Batch Job Status:", batch_status) #or just batch?
 
         #make periodic with while loop (sleep for 60 seconds)
         while True:
+            batch_job = self.client.batches.retrieve(batch_job.id)
+            batch_status = batch_job.status
+
+            
             if batch_status == "completed":
+                
+                output_file_id = batch_job.output_file_id
+
+                if not output_file_id:
+                    print("Batch Job complete, waiting for output File.")
+                    time.sleep(5)
+                    continue #continue to complete text if output file is filled
                 print("Batch job completed successfully.") # move on from here, may drop to end
                 #get results / output
 
@@ -228,7 +257,7 @@ class APIModels():
             else: #make == in_progress?
                 print("Batch job is still in progress. Current status:", batch_status)
                 
-            time.sleep(60)  # Sleep for 60 seconds before checking again
+            time.sleep(10)  # Sleep for 60 seconds before checking again
 
 def main():
         API = APIModels()
