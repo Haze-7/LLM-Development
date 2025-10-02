@@ -213,11 +213,11 @@ class APIModels():
                         question_id = result_line.get("custom_id")
                         
                         #handle multiple choice questions / answers errors
-                        response = result_line.get("response")
-                        if response and "choices" in response and len(response["choices"]) > 0:
-                            answer = response["choices"][0]["message"]["content"]
-                        else:
+                        try:
+                            answer = result_line["response"]["body"]["choices"][0]["message"]["content"]
+                        except (KeyError, IndexError, TypeError):
                             answer = None
+
 
                         question_text = id_to_question.get(question_id)
 
