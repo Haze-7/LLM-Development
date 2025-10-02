@@ -78,6 +78,13 @@ class APIModels():
         self.client = OpenAI(api_key = key)
 
     def get_questions(self, dataset_path = "dev-v2.0.json", limit = 500):
+        """
+        Traverse / Convert data set to workable .jsonl file for batch/ other api functionality
+
+        Arguments:
+        dataset_path: The path / name of the dataset to be used/analyzed.
+        limit: # of questions to consider (excluding impossible questions) 
+        """
 
         #load dataset
         with open(dataset_path, "r") as file:
@@ -95,6 +102,15 @@ class APIModels():
         return questions # in case dataset is smaller than 500 entries (maybe get rid of )
 
     def gpt5_nano_batch(self, limit = 500):
+        """
+        Run / Monitor API call to gpt5-nano in batch configuration.
+
+        Arguments:
+        limit: 
+
+        Source Used:
+        https://platform.openai.com/docs/guides/batch
+        """
         
         #retreieve question set from get_questions method
         question_set = self.get_questions(limit = limit)
@@ -115,6 +131,7 @@ class APIModels():
                         "messages": [
                             {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #Update with proper question
                             {"role": "user", "content": question["question"]},
+
                         ]
                     }
                 }
@@ -166,7 +183,7 @@ class APIModels():
             json.dump(tracker_data, track_file, indent = 2)
 
 
-        #track / check batch job status:
+        #track / check batch job status: (initial / first time (may remove / redundant with loop below))
         batch_job = self.client.batches.retrieve(batch_job.id)
         batch_status = batch_job.status # get status for selected batch job ( by id)
         print("Batch Job Status:", batch_status) #or just batch?
@@ -190,7 +207,7 @@ class APIModels():
                     print("Batch job completed, waiting for output File...")
                     time.sleep(20)
                     continue 
-
+                          
                 print("Batch job completed successfully.") # move on from here, may drop to end
                 #get results / output
 
@@ -247,6 +264,7 @@ class APIModels():
                 print("Batch job ran out of time and expired.")
 
             time.sleep(20)  # Sleep for 20 seconds before checking again
+
 
 def main():
         API = APIModels()
