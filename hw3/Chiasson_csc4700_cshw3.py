@@ -237,13 +237,15 @@ class APIModels():
                     for result in results:
                         print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
 
+                    break #exit while loop / end program
+
             elif batch_status == "failed":
                 print("Batch job failed. Please check the details.")
             elif batch_status == "cancelled":
                 print("Batch job was cancelled.")
             elif batch_status == "expired":
                 print("Batch job ran out of time and expired.")
-                
+
             time.sleep(20)  # Sleep for 20 seconds before checking again
 
 def main():
