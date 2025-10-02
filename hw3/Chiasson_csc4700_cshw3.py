@@ -243,8 +243,6 @@ class APIModels():
                 print("Batch job was cancelled.")
             elif batch_status == "expired":
                 print("Batch job ran out of time and expired.")
-            else: 
-                print("Batch job is still in progress. Current status:", batch_status)
                 
             time.sleep(20)  # Sleep for 20 seconds before checking again
 
