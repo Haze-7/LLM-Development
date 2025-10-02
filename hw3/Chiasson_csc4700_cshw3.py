@@ -171,11 +171,17 @@ class APIModels():
         batch_status = batch_job.status # get status for selected batch job ( by id)
         print("Batch Job Status:", batch_status) #or just batch?
 
+        last_status = None
+
         #make periodic with while loop (sleep for 60 seconds)
         while True:
 
             batch_job = self.client.batches.retrieve(batch_job.id) #update batch job status
             batch_status = batch_job.status
+
+            if batch_status != last_status:
+                print ("Batch Job Status:", batch_status)
+                
 
             if batch_status == "completed":
                 output_file_id = batch_job.output_file_id
@@ -183,7 +189,7 @@ class APIModels():
                 if not output_file_id:
                     print("Batch job completed, waiting for output File...")
                     time.sleep(20)
-                    continue
+                    continue 
 
                 print("Batch job completed successfully.") # move on from here, may drop to end
                 #get results / output
