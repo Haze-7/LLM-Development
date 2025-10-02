@@ -1,2 +1,5 @@
 .env
 .env.*
+*.jsonl
+*.json
+batch_input_file
