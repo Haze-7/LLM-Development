@@ -9,11 +9,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import time # for tracking sleep function
+import requests
 
 #load environmental variables
 load_dotenv('.env')
 
 key = os.getenv("OPENAI_API_KEY")
+router_key = os.getenv("OPENROUTER_API_KEY")
 
 #establish client
 client = OpenAI(api_key = key)
@@ -101,7 +103,7 @@ class APIModels():
                             return questions
         return questions # in case dataset is smaller than 500 entries (maybe get rid of )
 
-    def gpt5_nano_batch(self, limit = 500):
+    def openai_batch(self, limit = 500):
         """
         Run / Monitor API call to gpt5-nano in batch configuration.
 
@@ -266,9 +268,63 @@ class APIModels():
             time.sleep(20)  # Sleep for 20 seconds before checking again
 
 
+    def openrouter_serial(self, limit = 500):
+        """
+        temp
+        """
+
+        questions = self.get_questions(limit = limit)
+
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {router_key}",
+            "Content-type": "application/json",
+            #maybe add title
+        }
+
+        results = []
+
+        for idx, question in enumerate(questions[:limit], 1):
+            body = {
+                "model": "qwen/qwen3-8b",
+                "messages": [
+                    { "role": "system", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #ask prompt here
+                    { "role": "user", "content": question["question"]}
+                ]
+            }
+
+            try:
+                response = requests.post(url, headers = headers, json = body)
+                response.raise_for_status()
+                data = response.json()
+                answer = data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError, requests.exceptions.RequestException) as e:
+                print(f"Error on question {question['id']}: {e}")
+                answer = None
+
+            results.append({
+                "id": question["id"],
+                "question": question["question"],
+                "answer": answer
+            })
+
+            #CREATE output file
+            with open("openrouter_results.jsonl", "a") as file:
+                file.write(json.dumps(results[-1]) + "\n")
+ 
+            print(f"Processed question {idx}/{min(limit, len(questions))}")
+
+        for result in results:
+            print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
+
+        #break #exit while loop / end program
+
+
 def main():
         API = APIModels()
-        API.gpt5_nano_batch(limit = 3)
+        #API.openai_batch(limit = 3)
+
+        API.openrouter_serial(limit = 3)
     # APIModels.gpt5_nano_batch()
 
 if __name__ == "__main__":
