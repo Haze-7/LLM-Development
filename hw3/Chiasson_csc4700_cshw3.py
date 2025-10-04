@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import os
 import time # for tracking sleep function
 import requests
+import argparse
 
 #load environmental variables
 load_dotenv('.env')
@@ -320,12 +321,49 @@ class APIModels():
         #break #exit while loop / end program
 
 
-def main():
-        API = APIModels()
-        #API.openai_batch(limit = 3)
+def openai_grader():
+    """
+    Will implement grader withh gpt-mini batch mode to score responses (from output files)
+    will be verry similar to first
+    use output.jsonl files
 
-        API.openrouter_serial(limit = 3)
-    # APIModels.gpt5_nano_batch()
+    //if batch
+
+    //elif stream
+
+    //grade / output 
+    
+    """
+    pass
+
+def main():
+    API = APIModels()
+        #API.openai_batch(limit = 3)
+        #API.openrouter_serial(limit = 3)
+
+    # Command Line Interface
+    parser = argparse.ArgumentParser(description = "API Interaction")
+
+    #Define args
+    #Activity Selector
+    parser.add_argument("activity", type=str, choices=["openai_batch", "openrouter_serial", "grader_model"], help = "Select Model / Format to run for answering questions.")
+
+    #b. An argument (--limit) that sets the limit / number of questions to read
+    parser.add_argument("--limit", type = int, default = 500, help = "Sets the number of questions (excluding impossible) to process.")
+
+    
+    args = parser.parse_args()
+
+    limit = args.limit
+    # Handle activity choices running
+    if args.activity == "openai_batch":
+        API.openai_batch(limit)
+    elif args.activity == "openrouter_serial":
+        API.openrouter_serial(limit)
+    # elif args.activity == "grade_results":
+    #     API.grade_previous_results() #need ot implement
+    
+    
 
 if __name__ == "__main__":
     main()
