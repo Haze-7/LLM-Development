@@ -284,6 +284,10 @@ class APIModels():
         }
 
         results = []
+        
+        #create file / reset each run (so it doesn't continue to pile up (error I was having))
+        with open("openrouter_results.jsonl", "w") as file:
+            pass
 
         for idx, question in enumerate(questions[:limit], 1):
             body = {
@@ -309,7 +313,7 @@ class APIModels():
                 "answer": answer
             })
 
-            #CREATE output file
+            #append to file
             with open("openrouter_results.jsonl", "a") as file:
                 file.write(json.dumps(results[-1]) + "\n")
  
@@ -321,9 +325,9 @@ class APIModels():
         #break #exit while loop / end program
 
 
-def openai_grader():
+def openai_grader(self, limit = 500):
     """
-    Will implement grader withh gpt-mini batch mode to score responses (from output files)
+    Will implement grader with gpt-mini batch mode to score responses (from output files)
     will be verry similar to first
     use output.jsonl files
 
@@ -334,7 +338,71 @@ def openai_grader():
     //grade / output 
     
     """
-    pass
+
+    questions = self.get_questions(limit = limit)
+
+    id_to_question = {question["id"]: question["question"] for question in questions}
+
+    id_to_correct_answers = {question["id"]: question["answers"] for question in questions}
+
+    #result files from batch (gpt-5-nano) & streaming ()
+    model_results = {
+        "gpt-5-nano": "batch_results.jsonl",
+        "quen3-8b": "openrouter_results.jsonl"
+    }
+
+    #setup grader batch mode model
+    with open("grader_input_file", "w") as file:
+        for model, result in model_results.items():
+            #read each model results
+            with open(result, "r") as grader_file:
+                for line in grader_file:
+                    result = json.loads(line)
+                    question_id = result['id']
+                    question = id_to_question.get(question_id) #maybe add , "unknown question"
+                    student_response = result.get("answer", "")
+                    
+                    #
+                    correct_answers = id_to_correct_answers.get(question_id, [])
+
+                    grading_prompt = f"""
+                        You are a teacher tasked with determining whether a student’s answer to a question was correct,
+                        based on a set of possible correct answers. You must only use the provided possible correct answers
+                        to determine if the student’s response was correct.
+                    
+                        Question: {question}
+                        Student’s Response: {student_response}
+                        Possible Correct Answers:
+                        {correct_answers}
+                        Your response should only be a valid Json as shown below:
+                        {{
+                        "explanation" (str): A short explanation of why the student’s answer was correct or
+                        incorrect.,
+                        "score" (bool): true if the student’s answer was correct, false if it was incorrect
+                        }}
+                        Your response: 
+                        """
+                    
+                    #create batchline for gpt-5 mini
+
+                    batch_line = {
+                        "custom_id": f"{model}_{question_id}",
+                        "method": "POST",
+                        "url": "/v1/chat/completions",
+                        "body": {
+                            "model": "gpt-5-mini",
+                            "messages": [
+                                {"role": "system", "content": grading_prompt}
+                                #add second?
+                            ]
+                        }
+                    }
+
+                    #write line to grader input file:
+                    grader_file.write(json.dumps(batch_line) + "\n")
+                    
+
+
 
 def main():
     API = APIModels()
