@@ -29,43 +29,6 @@ Libraries we can use:
 -pydantic
 
 
-Instructions
-1. Get dev set
-- extract 1st 500 questions / answers
-- skip is_impossible questions
-
-2. w/ api Run GPT-5 Nano in batch mode 
-- use minimal reasoning_effort
-- generate answers to all questions from step 1
-- test w. small batch first (3 or 4 lines)
-
-Question 1: What prompt did I use?
-
-3. w/ Api, run qwen / quen3-8b (serially / not batch) 
-- 1 question after another
-- generate answers to all questions from step 1 (dev set)
-
-Question 2: What prompt did I use?
-
-4. w/ api, use gpt-5-mini in batch mode to score responses of previous 2
-- mark as either True(correct) or False(incorrect)
-- provide an explanation
-- use STRUCTURED OUTPUTS to ensure vlaid output JSON
-- save outputs for each model in Json file that can be reused
-- files should be named like (gpt-5-nanp-DATE-hw3.json)
-- use structured_outputs feature to get both
-    - explanation(str)
-    -score (boolean)
-Use prompt shown belowL
-
-Question 3: What was the total accuracy of GPT-5 nano?
-Question 4: What was the total accuracy of quwen/quwn3-8b
-Question 5: What are insights about the results (3-4 sentences)
-
-Scoring Prompt:
-
-At bottom of INstructions
-
 
 """
 
@@ -97,9 +60,18 @@ class APIModels():
 
         for entry in dataset["data"]:
             for paragraph in entry["paragraphs"]:
+                context = paragraph.get("context", "")
                 for qa in paragraph["qas"]:
                     if not qa.get("is_impossible", False): #skip if is_impossible == False
-                        questions.append({"id": qa["id"], "question": qa["question"] }) #add entry to new list
+                        #extract correct answers:
+                        answers = [answer["text"] for answer in qa.get("answers", []) if answer.get("text")]
+
+                        questions.append({
+                            "id": qa["id"], 
+                            "question": qa["question"],
+                            "context": context,
+                            "answers": answers
+                        }) #add entry to new list
                         if len(questions) >= limit:
                             return questions
         return questions # in case dataset is smaller than 500 entries (maybe get rid of )
@@ -121,7 +93,7 @@ class APIModels():
         print(f"Number of questions in batch: {len(question_set)}")
 
 
-        #NEXT, prepare batch file
+        #prepare batch file
         with open("batch_input_file", "w") as file:
             for question in question_set:
                 line = {
@@ -325,82 +297,86 @@ class APIModels():
         #break #exit while loop / end program
 
 
-def openai_grader(self, limit = 500):
-    """
-    Will implement grader with gpt-mini batch mode to score responses (from output files)
-    will be verry similar to first
-    use output.jsonl files
+    def openai_grader(self, limit = 500):
+        """
+        Will implement grader with gpt-mini batch mode to score responses (from output files)
+        will be verry similar to first
+        use output.jsonl files
 
-    //if batch
+        //if batch
 
-    //elif stream
+        //elif stream
 
-    //grade / output 
-    
-    """
+        //grade / output 
+        
+        """
+        questions = self.get_questions(limit = limit)
 
-    questions = self.get_questions(limit = limit)
+        id_to_question = {question["id"]: question["question"] for question in questions}
 
-    id_to_question = {question["id"]: question["question"] for question in questions}
+        id_to_context = {question["id"]: question["context"] for question in questions}
 
-    id_to_correct_answers = {question["id"]: question["answers"] for question in questions}
+        id_to_correct_answers = {question["id"]: question["answers"] for question in questions}
+        
 
-    #result files from batch (gpt-5-nano) & streaming ()
-    model_results = {
-        "gpt-5-nano": "batch_results.jsonl",
-        "quen3-8b": "openrouter_results.jsonl"
-    }
+        #result files from batch (gpt-5-nano) & streaming ()
+        model_results = {
+            "gpt-5-nano": "batch_results.jsonl",
+            "quen3-8b": "openrouter_results.jsonl"
+        }
 
-    #setup grader batch mode model
-    with open("grader_input_file", "w") as file:
-        for model, result in model_results.items():
-            #read each model results
-            with open(result, "r") as grader_file:
-                for line in grader_file:
-                    result = json.loads(line)
-                    question_id = result['id']
-                    question = id_to_question.get(question_id) #maybe add , "unknown question"
-                    student_response = result.get("answer", "")
-                    
-                    #
-                    correct_answers = id_to_correct_answers.get(question_id, [])
+        #prepare batch input file
+        with open("grader_input_file", "w") as file:
+            for model, result_file in model_results.items():
+                #read each model results 
+                with open(result_file, "r") as grader_file: #return here
+                    for line in grader_file:
+                        result_data = json.loads(line)
+                        question_id = result_data['id']
+                        question = id_to_question.get(question_id, "Question Missing") #maybe add , "unknown question"
+                        student_response = result_data.get("answer", "")
+                        
+                        #
+                        question_text = id_to_question.get(question_id)
+                        context_text = id_to_context.get(question_id, "")
+                        correct_answers = id_to_correct_answers.get(question_id, [])
 
-                    grading_prompt = f"""
-                        You are a teacher tasked with determining whether a student’s answer to a question was correct,
-                        based on a set of possible correct answers. You must only use the provided possible correct answers
-                        to determine if the student’s response was correct.
-                    
-                        Question: {question}
-                        Student’s Response: {student_response}
-                        Possible Correct Answers:
-                        {correct_answers}
-                        Your response should only be a valid Json as shown below:
-                        {{
-                        "explanation" (str): A short explanation of why the student’s answer was correct or
-                        incorrect.,
-                        "score" (bool): true if the student’s answer was correct, false if it was incorrect
-                        }}
-                        Your response: 
-                        """
-                    
-                    #create batchline for gpt-5 mini
+                        grading_prompt = f"""
+                            You are a teacher tasked with determining whether a student’s answer to a question was correct,
+                            based on a set of possible correct answers. You must only use the provided possible correct answers
+                            to determine if the student’s response was correct.
+                        
+                            Question: {question}
+                            Student’s Response: {student_response}
+                            Possible Correct Answers:
+                            {correct_answers}
+                            Your response should only be a valid Json as shown below:
+                            {{
+                            "explanation" (str): A short explanation of why the student’s answer was correct or
+                            incorrect.,
+                            "score" (bool): true if the student’s answer was correct, false if it was incorrect
+                            }}
+                            Your response: 
+                            """
+                        
+                        #create batchline for gpt-5 mini
 
-                    batch_line = {
-                        "custom_id": f"{model}_{question_id}",
-                        "method": "POST",
-                        "url": "/v1/chat/completions",
-                        "body": {
-                            "model": "gpt-5-mini",
-                            "messages": [
-                                {"role": "system", "content": grading_prompt}
-                                #add second?
-                            ]
+                        batch_line = {
+                            "custom_id": f"{model}_{question_id}",
+                            "method": "POST",
+                            "url": "/v1/chat/completions",
+                            "body": {
+                                "model": "gpt-5-mini",
+                                "messages": [
+                                    {"role": "system", "content": grading_prompt}
+                                    #add second?
+                                ]
+                            }
                         }
-                    }
 
-                    #write line to grader input file:
-                    grader_file.write(json.dumps(batch_line) + "\n")
-                    
+                        #write line to grader input file:
+                        grader_file.write(json.dumps(batch_line) + "\n")
+                        
 
 
 
