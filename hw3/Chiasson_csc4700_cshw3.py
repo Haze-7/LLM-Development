@@ -90,6 +90,23 @@ class APIModels():
 
         print(f"Number of questions in batch: {len(question_set)}")
 
+        openai_batch_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "student_response",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "answer": {
+                            "type": "object",
+                            "description": "Student's answer to the given question."
+                        },
+                    },
+                    "required": ["answer"],
+                }
+            }
+        }
+
         #prepare batch file
         with open("batch_input_file", "w") as file:
             for question in question_set:
@@ -103,8 +120,8 @@ class APIModels():
                         "messages": [
                             {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #Update with proper question
                             {"role": "user", "content": question["question"]},
-
-                        ]
+                        ],
+                        "response_format": openai_batch_schema
                     }
                 }
                 file.write(json.dumps(line) + "\n") #dump / output (change later)
@@ -205,15 +222,21 @@ class APIModels():
 
                 with open("batch_results.jsonl", "r") as batch_results_file:
                     for line in batch_results_file:
-                        result_line = (json.loads(line)) #each line of results file (get data)
-                        question_id = result_line.get("custom_id")
+                        result_line = json.loads(line) #each line of results file (get data)
+                        #question_id = result_line.get("custom_id")
+                        question_id = id_to_question.get(question_id)
                         
                         #handle multiple choice questions / answers errors
                         try:
-                            answer = result_line["response"]["body"]["choices"][0]["message"]["content"]
-                        except (KeyError, IndexError, TypeError):
-                            answer = None
+                            body = result_line["response"]["body"]
+                            structured_output = body.get("structured_output")  # Should exist now
 
+                            if not structured_output:
+                                raise ValueError("Missing structured_output field in batch result")
+
+                            answer = structured_output.get("answer")
+                        except (KeyError, TypeError, ValueError):
+                            answer = None
 
                         question_text = id_to_question.get(question_id)
 
@@ -225,6 +248,7 @@ class APIModels():
 
                     #output nicely?:
                     for result in results:
+                        #print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
                         print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
 
                     break #exit while loop / end program
@@ -273,8 +297,8 @@ class APIModels():
                 response.raise_for_status()
                 data = response.json()
                 answer = data["choices"][0]["message"]["content"]
-            except (KeyError, IndexError, TypeError, requests.exceptions.RequestException) as e:
-                print(f"Error on question {question['id']}: {e}")
+            except (KeyError, IndexError, TypeError, requests.exceptions.RequestException):
+                print(f"Error on question")
                 answer = None
 
             results.append({
@@ -340,8 +364,7 @@ class APIModels():
                     },
                     "required": ["score", "explanation"],
                     "additionalProperties": False
-                },
-                "strict": True
+                }
             }
         }
 
@@ -483,14 +506,27 @@ class APIModels():
 
                     with open("grader_batch_results.jsonl", "r") as grader_batch_results_file:
                         for line in grader_batch_results_file:
-                            result_line = (json.loads(line))
+                            result_line = json.loads(line)
                             question_id = result_line.get("custom_id")
+
+                            #structured_output = body["structured_output"]
+                            #score = structured_output = ["score"]
+                            #score = structured_output = ["score"]
+                            # try:
+                            #     body = result_line["response"]["body"]
+                            #     structured_output = body.get("structured_output")
+
+                            #     if not structured_output:
+                            #         raise ValueError("missing structured_output field")
+
+                            #     score = structured_output.get("score")
+                            #     explanation = structured_output.get("explanation")
+                            # except (KeyError, IndexError, TypeError):
+                            #     score = None
+                            #     explanation = None
 
                             #structured output
                             structured_output = result_line.get("response", {}).get("body", {}).get("structured_output", {}) or {}
-
-                            score = structured_output.get("score")
-                            explanation = structured_output.get("explanation", "")
 
                             results.append({
                                 "id": question_id,
