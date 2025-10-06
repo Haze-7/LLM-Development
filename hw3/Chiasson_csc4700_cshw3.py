@@ -60,7 +60,6 @@ class APIModels():
 
         for entry in dataset["data"]:
             for paragraph in entry["paragraphs"]:
-                context = paragraph.get("context", "")
                 for qa in paragraph["qas"]:
                     if not qa.get("is_impossible", False): #skip if is_impossible == False
                         #extract correct answers:
@@ -69,7 +68,6 @@ class APIModels():
                         questions.append({
                             "id": qa["id"], 
                             "question": qa["question"],
-                            "context": context,
                             "answers": answers
                         }) #add entry to new list
                         if len(questions) >= limit:
@@ -91,7 +89,6 @@ class APIModels():
         question_set = self.get_questions(limit = limit)
 
         print(f"Number of questions in batch: {len(question_set)}")
-
 
         #prepare batch file
         with open("batch_input_file", "w") as file:
@@ -118,7 +115,7 @@ class APIModels():
 
         batch_file = self.client.files.create(
             file = open("batch_input_file", "rb"),
-            purpose="batch"
+            purpose = "batch"
         )
 
         file_id = batch_file.id
@@ -159,9 +156,9 @@ class APIModels():
 
 
         #track / check batch job status: (initial / first time (may remove / redundant with loop below))
-        batch_job = self.client.batches.retrieve(batch_job.id)
-        batch_status = batch_job.status # get status for selected batch job ( by id)
-        print("Batch Job Status:", batch_status) #or just batch?
+        # batch_job = self.client.batches.retrieve(batch_job.id)
+        # batch_status = batch_job.status # get status for selected batch job ( by id)
+        # print("Batch Job Status:", batch_status) #or just batch?
 
         last_status = None
 
@@ -173,6 +170,7 @@ class APIModels():
 
             if batch_status != last_status:
                 print ("Batch Job Status:", batch_status)
+                last_status = batch_status
                 
 
             if batch_status == "completed":
@@ -265,7 +263,7 @@ class APIModels():
             body = {
                 "model": "qwen/qwen3-8b",
                 "messages": [
-                    { "role": "system", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #ask prompt here
+                    { "role": "system", "content": "Your job is to take in questions and provide answers to them. Answer each question with only the final concise answer. Do not provide explanations, context, or markdown formatting."}, #ask prompt here
                     { "role": "user", "content": question["question"]}
                 ]
             }
@@ -310,19 +308,41 @@ class APIModels():
         //grade / output 
         
         """
+        #get/ convert questions from dataset
         questions = self.get_questions(limit = limit)
 
+        #store question ids in dictionaries
         id_to_question = {question["id"]: question["question"] for question in questions}
-
-        id_to_context = {question["id"]: question["context"] for question in questions}
-
         id_to_correct_answers = {question["id"]: question["answers"] for question in questions}
         
 
-        #result files from batch (gpt-5-nano) & streaming ()
+        #result files from batch (gpt-5-nano) & streaming (qwen3-8b)
         model_results = {
             "gpt-5-nano": "batch_results.jsonl",
-            "quen3-8b": "openrouter_results.jsonl"
+            "qwen3-8b": "openrouter_results.jsonl"
+        }
+
+        grading_response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "grader_response",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "score": {
+                            "type": "boolean",
+                            "description": "Boolean decision if student answer is correct(True) or incorrect(False)"
+                        },
+                        "explanation": {
+                            "type": "string",
+                            "description": "A short explanation of why student answer was or wasn't correct."
+                        }
+                    },
+                    "required": ["score", "explanation"],
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
         }
 
         #prepare batch input file
@@ -338,7 +358,6 @@ class APIModels():
                         
                         #
                         question_text = id_to_question.get(question_id)
-                        context_text = id_to_context.get(question_id, "")
                         correct_answers = id_to_correct_answers.get(question_id, [])
 
                         grading_prompt = f"""
@@ -369,17 +388,132 @@ class APIModels():
                                 "model": "gpt-5-mini",
                                 "messages": [
                                     {"role": "system", "content": grading_prompt}
-                                    #add second?
-                                ]
+                                ],
+                                "response_format": grading_response_schema
                             }
                         }
 
                         #write line to grader input file:
-                        grader_file.write(json.dumps(batch_line) + "\n")
+                        file.write(json.dumps(batch_line) + "\n")
                         
+            #upload batch file to use with openAI
+            grader_batch_file = self.client.files.create(
+                file = open("grader_input_file", "rb"),
+                purpose = "batch"
+            )
+
+            grader_file_id = grader_batch_file.id
+
+            #create tracker file
+            grader_tracker_file = "grader_tracker_file.json"
+            grader_tracker_data = {"input_file_id": grader_file_id}
+
+            #write to file
+            with open (grader_tracker_file, "w") as grader_track_file:
+                json.dump(grader_tracker_data, grader_track_file, indent = 2)
+
+            with open(grader_tracker_file, "r") as grader_track_file:
+                grader_tracker_data = json.load(grader_track_file)
+            
+            #setup / usable for batch job
+            grader_file_id = grader_tracker_data["input_file_id"]
+
+            #create batch job
+            grader_batch_job = self.client.batches.create(
+                input_file_id = grader_file_id,
+                endpoint = "/v1/chat/completions",
+                completion_window="24h",
+                metadata = {
+                    "description": "GPT-5 Mini HW3 Grader Batch Job"
+                }
+            )
+
+            #save batch id to batch job
+            grader_tracker_data["grader_batch_job_id"] = grader_batch_job.id
+
+            #write to / update tracker file
+            with open(grader_tracker_file, "w") as grader_batch_track_file:
+                json.dump(grader_tracker_data, grader_batch_track_file, indent = 2)
+
+            #track / check job status
+            grader_batch_job = self.client.batches.retrieve(grader_batch_job.id)
+            grader_batch_status = grader_batch_job.status
+            # print("Grader batch Status:", grader_batch_status)
+
+            last_status = None
+
+            #track status loop
+            while True:
+                grader_batch_job = self.client.batches.retrieve(grader_batch_job.id)
+                grader_batch_status = grader_batch_job.status
+
+                if grader_batch_status != last_status:
+                    print("Grader Batch Job Status:", grader_batch_status)
+                    last_status = grader_batch_status
+                
+                #handle if complete
+                if grader_batch_status == "completed":
+                    grader_output_file_id = grader_batch_job.output_file_id
+
+                    if not grader_output_file_id:
+                        print("Grading Batch Job completed successfully, waiting for output file...")
+                        time.sleep(20)
+                        continue
+                    
+                    print("Grading Batch job completed successfully.")
+
+                    #get results / output
+                    grader_output_file_id = grader_batch_job.output_file_id
+                    grader_batch_results = self.client.files.content(grader_output_file_id)
+
+                    #save to local file(may not need)
+                    if hasattr(grader_batch_results, "read"):
+                        grader_batch_results_data = grader_batch_results.read()
+                    else:
+                        grader_batch_results_data = bytes(grader_batch_results)
+
+                    #save locally
+                    with open("grader_batch_results.jsonl", "wb") as grader_batch_results_file:
+                        grader_batch_results_file.write(grader_batch_results_data)
+                    
+                    #get question text / other data w/ id_to_question, etc?
+
+                    #parse results file for output data
+                    results = []
+
+                    with open("grader_batch_results.jsonl", "r") as grader_batch_results_file:
+                        for line in grader_batch_results_file:
+                            result_line = (json.loads(line))
+                            question_id = result_line.get("custom_id")
+
+                            #structured output
+                            structured_output = result_line.get("response", {}).get("body", {}).get("structured_output", {}) or {}
+
+                            score = structured_output.get("score")
+                            explanation = structured_output.get("explanation", "")
+
+                            results.append({
+                                "id": question_id,
+                                "score": score,
+                                "explanation": explanation
+                            })
+
+                        for result in results:
+                            print(f"Question ID: {result['id']}\nScore: {result['score']}\nExplanation: {result['explanation']}\n")
+                        
+                        break
+                elif grader_batch_status == "failed":
+                    print("Batch job failed. Please check the details.")
+                elif grader_batch_status == "cancelled":
+                    print("Batch job was cancelled.")
+                elif grader_batch_status == "expired":
+                    print("Batch job ran out of time and expired.")
+
+                time.sleep(20)  # Sleep for 20 seconds before checking again
 
 
 
+                        
 def main():
     API = APIModels()
         #API.openai_batch(limit = 3)
@@ -390,7 +524,7 @@ def main():
 
     #Define args
     #Activity Selector
-    parser.add_argument("activity", type=str, choices=["openai_batch", "openrouter_serial", "grader_model"], help = "Select Model / Format to run for answering questions.")
+    parser.add_argument("activity", type=str, choices=["openai_batch", "openrouter_serial", "openai_grader"], help = "Select Model / Format to run for answering questions.")
 
     #b. An argument (--limit) that sets the limit / number of questions to read
     parser.add_argument("--limit", type = int, default = 500, help = "Sets the number of questions (excluding impossible) to process.")
@@ -404,6 +538,8 @@ def main():
         API.openai_batch(limit)
     elif args.activity == "openrouter_serial":
         API.openrouter_serial(limit)
+    elif args.activity == "openai_grader":
+        API.openai_grader(limit)
     # elif args.activity == "grade_results":
     #     API.grade_previous_results() #need ot implement
     
