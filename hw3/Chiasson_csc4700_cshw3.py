@@ -116,7 +116,7 @@ class APIModels():
                     "url": "/v1/chat/completions", #may change
                     "body": {
                         "model": "gpt-5-nano",
-                        #"reasoning_effort": "minimal",
+                        "reasoning_effort": "minimal",
                         "messages": [
                             {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #Update with proper question
                             {"role": "user", "content": question["question"]},
@@ -200,7 +200,7 @@ class APIModels():
                           
                 print("Batch job completed successfully.") # move on from here, may drop to end
                 #get results / output
-
+                #start edit call
                 output_file_id = batch_job.output_file_id # get id of output file for batch job (field)
                 batch_results = self.client.files.content(output_file_id) #use ^ to get output file content (batch results)
 
@@ -222,28 +222,33 @@ class APIModels():
 
                 with open("batch_results.jsonl", "r") as batch_results_file:
                     for line in batch_results_file:
-                        result_line = json.loads(line) #each line of results file (get data)
-                        #question_id = result_line.get("custom_id")
-                        question_id = id_to_question.get(question_id)
-                        
-                        #handle multiple choice questions / answers errors
+                        result_line = json.loads(line)
+                        question_id = result_line.get("custom_id")
+
+
+                        # Extract the answer from choices[0].message.content
+                        #answer_json = result_line.get("response", {}).get("body", {}).get("choices", [])[0].get("message", {}).get("content", "{}")
+                        answer_json = (
+                            result_line.get("response", {}).get("body", {}).get("choices", [])[0].get("message", {}).get("content", "{}")
+                        )
                         try:
-                            body = result_line["response"]["body"]
-                            structured_output = body.get("structured_output")  # Should exist now
+                            answer_data = json.loads(answer_json)
+                            #student_answer = answer_data.get("answer", {}).get("value") or answer_data.get("answer", {}).get("description")
+                            answer_field = answer_data.get("answer", {})
+                            student_answer = (
+                                answer_field.get("description")  # base questions
+                                or answer_field.get("content")   # multiple choice fallback
+                            )
+                        except json.JSONDecodeError:
+                            student_answer = answer_json
 
-                            if not structured_output:
-                                raise ValueError("Missing structured_output field in batch result")
-
-                            answer = structured_output.get("answer")
-                        except (KeyError, TypeError, ValueError):
-                            answer = None
-
+                        # Preserve question text from original question set
                         question_text = id_to_question.get(question_id)
-
+                        
                         results.append({
-                            "id": question_id, 
+                            "id": question_id,
                             "question": question_text,
-                            "answer": answer
+                            "answer": student_answer
                         })
 
                     #output nicely?:
@@ -509,21 +514,20 @@ class APIModels():
                             result_line = json.loads(line)
                             question_id = result_line.get("custom_id")
 
-                            #structured_output = body["structured_output"]
-                            #score = structured_output = ["score"]
-                            #score = structured_output = ["score"]
-                            # try:
-                            #     body = result_line["response"]["body"]
-                            #     structured_output = body.get("structured_output")
+                            structured_output = body["structured_output"]
+                            score = structured_output = ["score"]
+                            try:
+                                body = result_line["response"]["body"]
+                                structured_output = body.get("structured_output")
 
-                            #     if not structured_output:
-                            #         raise ValueError("missing structured_output field")
+                                if not structured_output:
+                                    raise ValueError("missing structured_output field")
 
-                            #     score = structured_output.get("score")
-                            #     explanation = structured_output.get("explanation")
-                            # except (KeyError, IndexError, TypeError):
-                            #     score = None
-                            #     explanation = None
+                                score = structured_output.get("score")
+                                explanation = structured_output.get("explanation")
+                            except (KeyError, IndexError, TypeError):
+                                score = None
+                                explanation = None
 
                             #structured output
                             structured_output = result_line.get("response", {}).get("body", {}).get("structured_output", {}) or {}
