@@ -114,7 +114,7 @@ class APIModels():
                         "model": "gpt-5-nano",
                         "reasoning_effort": "minimal",
                         "messages": [
-                            {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."}, #Update with proper question
+                            {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."},
                             {"role": "user", "content": question["question"]},
                         ],
                         "response_format": openai_batch_schema
@@ -290,7 +290,7 @@ class APIModels():
             body = {
                 "model": "qwen/qwen3-8b",
                 "messages": [
-                    { "role": "system", "content": "Your job is to take in questions and provide answers to them. Answer each question with only the final concise answer. Do not provide explanations, context, or markdown formatting."}, #ask prompt here
+                    { "role": "system", "content": "Your job is to take in questions and provide answers to them. Answer each question with only the final concise answer. Do not provide explanations, context, or markdown formatting."}, 
                     { "role": "user", "content": question["question"]}
                 ]
             }
@@ -319,6 +319,7 @@ class APIModels():
         for result in results:
             print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
 
+    
         #break #exit while loop / end program
 
 
