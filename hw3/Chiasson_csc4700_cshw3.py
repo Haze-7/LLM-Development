@@ -1,7 +1,12 @@
 """
 LLM Development HW 3:
 
-Project Description
+Program that utilizes openAI & Open Router API calls to get AI models to answer a set of questions, then grade them with another model.
+
+Coder's Note:
+Able to get proper output for each Model.
+Able to get proper grading for Qwen model.
+Able to get proper grading for openai batch model, explanations slightly wonky.
 
 """
 import json
@@ -21,16 +26,7 @@ router_key = os.getenv("OPENROUTER_API_KEY")
 #establish client
 client = OpenAI(api_key = key)
 
-"""
 
-Libraries we can use:
-- openai
-- python-dotenv
--pydantic
-
-
-
-"""
 
 #Extract first 500 questions/ answers
 #if == is_impossible, skip
@@ -76,10 +72,10 @@ class APIModels():
 
     def openai_batch(self, limit = 500):
         """
-        Run / Monitor API call to gpt5-nano in batch configuration.
+        Run API call to gpt-5-nano as a student answering questions in batch configuration.
 
         Arguments:
-        limit: 
+        limit: Sets the # of questions to read (excluding is_impossible).
 
         Source Used:
         https://platform.openai.com/docs/guides/batch
@@ -270,7 +266,10 @@ class APIModels():
 
     def openrouter_serial(self, limit = 500):
         """
-        temp
+        Run API call to qwen3/ qwen3-8b as a student answering questions in serial configuration.
+
+        Arguments:
+        limit: Sets the # of questions to read (excluding is_impossible).
         """
 
         questions = self.get_questions(limit = limit)
@@ -279,7 +278,6 @@ class APIModels():
         headers = {
             "Authorization": f"Bearer {router_key}",
             "Content-type": "application/json",
-            #maybe add title
         }
 
         results = []
@@ -326,15 +324,11 @@ class APIModels():
 
     def openai_grader(self, limit = 500):
         """
-        Will implement grader with gpt-mini batch mode to score responses (from output files)
-        will be verry similar to first
-        use output.jsonl files
+        Grader with gpt-5-mini batch mode to score responses of previous models(students).
+        Provides a score (True or False), then gives an explanation as for why
 
-        //if batch
-
-        //elif stream
-
-        //grade / output 
+        Arguments:
+        limit: Sets the # of questions to read (excluding is_impossible).
         
         """
         #get/ convert questions from dataset
@@ -381,11 +375,9 @@ class APIModels():
                     for line in grader_file:
                         result_data = json.loads(line)
                         question_id = result_data['id']
-                        question = id_to_question.get(question_id, "Question Missing") #maybe add , "unknown question"
+                        question = id_to_question.get(question_id, "Question Missing")
                         student_response = result_data.get("answer", "")
                         
-                        #
-                        question_text = id_to_question.get(question_id)
                         correct_answers = id_to_correct_answers.get(question_id, [])
 
                         grading_prompt = f"""
@@ -415,7 +407,8 @@ class APIModels():
                             "body": {
                                 "model": "gpt-5-mini",
                                 "messages": [
-                                    {"role": "system", "content": grading_prompt}
+                                    {"role": "system", "content": "You are a teacher grading students answers to questions and providing appropriate explanations. Strictly follow the user's prompts"},
+                                    {"role": "user", "content": grading_prompt}
                                 ],
                                 "response_format": grading_response_schema
                             }
@@ -504,8 +497,6 @@ class APIModels():
                     with open("grader_batch_results.jsonl", "wb") as grader_batch_results_file:
                         grader_batch_results_file.write(grader_batch_results_data)
                     
-                    #get question text / other data w/ id_to_question, etc?
-
                     #parse results file for output data
                     results = []
 
@@ -513,24 +504,26 @@ class APIModels():
                         for line in grader_batch_results_file:
                             result_line = json.loads(line)
                             question_id = result_line.get("custom_id")
+                            # Grab the response body
+                            body = result_line.get("response", {}).get("body", {})
 
-                            structured_output = body["structured_output"]
-                            score = structured_output = ["score"]
                             try:
-                                body = result_line["response"]["body"]
-                                structured_output = body.get("structured_output")
+                                # Get the content string from the first choice
+                                message_content = (
+                                    body.get("choices", [{}])[0]
+                                    .get("message", {})
+                                    .get("content", "")
+                                    .strip()
+                                )
 
-                                if not structured_output:
-                                    raise ValueError("missing structured_output field")
-
+                                # Parse the JSON string from the model
+                                structured_output = json.loads(message_content)
                                 score = structured_output.get("score")
                                 explanation = structured_output.get("explanation")
-                            except (KeyError, IndexError, TypeError):
+
+                            except (KeyError, IndexError, TypeError, json.JSONDecodeError):
                                 score = None
                                 explanation = None
-
-                            #structured output
-                            structured_output = result_line.get("response", {}).get("body", {}).get("structured_output", {}) or {}
 
                             results.append({
                                 "id": question_id,
@@ -556,8 +549,6 @@ class APIModels():
                         
 def main():
     API = APIModels()
-        #API.openai_batch(limit = 3)
-        #API.openrouter_serial(limit = 3)
 
     # Command Line Interface
     parser = argparse.ArgumentParser(description = "API Interaction")
@@ -580,20 +571,13 @@ def main():
         API.openrouter_serial(limit)
     elif args.activity == "openai_grader":
         API.openai_grader(limit)
-    # elif args.activity == "grade_results":
-    #     API.grade_previous_results() #need ot implement
-    
-    
 
 if __name__ == "__main__":
     main()
 
+ #link to docs
+ #https://platform.openai.com/docs/guides/batch
 
-
-
-            #link to docs
-            #current: https://platform.openai.com/docs/guides/batch
-
-            #from class:
-            #https://platform.openai.com/docs/api-reference/batch/create
-            #https://platform.openai.com/docs/overview
+#https://platform.openai.com/docs/api-reference/batch/create
+#https://platform.openai.com/docs/overview
+            
