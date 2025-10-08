@@ -1,0 +1,7 @@
+Teams_ai_bot
+    app.py
+    bot.py
+    ai_module.py
+    .env
+    requirements.txt
+    
