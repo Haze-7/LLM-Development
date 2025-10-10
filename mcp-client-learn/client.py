@@ -29,18 +29,22 @@ class MCPClient:
         Args:
             server_script_path: Path to the server script (.py or .js)
         """
+        #check file is python, tell to run
         is_python = server_script_path.endswith(".py")
-        is_js = server_script_path.endswith(".js")
-        if not (is_python or is_js):
-            raise ValueError("Server script must be a .py or .js file")
+        if not (is_python):
+            raise ValueError("Server script must be a .py file")
 
-        command = "python" if is_python else "node"
+        command = "python" if is_python else "error"
         server_params = StdioServerParameters(
             command=command,
             args=[server_script_path],
             env=None
         )
 
+        #launch server
+        #build write/read streams for communication
+        #wrap ^ / handle MCP protocol
+        #register them for final cleanup
         stdio_transport = await self.exit_stack.enter_async_context(
             stdio_client(server_params)
         )
@@ -48,7 +52,8 @@ class MCPClient:
         self.session = await self.exit_stack.enter_async_context(
             ClientSession(self.stdio, self.write)
         )
-
+        
+        #init MCP through handshake w/ server
         await self.session.initialize()
 
         # List available tools
@@ -57,9 +62,10 @@ class MCPClient:
         print("\nConnected to server with tools:", [tool.name for tool in tools])
 
     #Process Query Function
-    #b
+    
     async def process_query(self, query: str) -> str:
         """Process a query using OpenAI and available tools"""
+        #where user input enters (like hw3)
         messages = [
             {
                 "role": "user",
@@ -82,18 +88,27 @@ class MCPClient:
         ]
 
         # Initial request to OpenAI
+        #send to open ai ("This is user question, and the tools available for you to use")
+        #messages = user question
+        #available tools = tools you can use 
+        #may need ot update to modern standard for gpt-5
         response = await self.openai.chat.completions.create(
-            model="gpt-4o",  # You can change this to gpt-4, gpt-3.5-turbo, etc.
+            model="gpt-5-mini",  # You can change this to gpt-4, gpt-3.5-turbo, etc.
             messages=messages,
             tools=available_tools
         )
 
         # Process tool calls in a loop
+        #enter if openai wants to use the tools
+        #adds openai response w/ tool calls to convo
         while response.choices[0].message.tool_calls:
             # Add assistant's message to conversation
             messages.append(response.choices[0].message)
 
             # Execute each tool call
+            #AI says: "call tool(get_forcast) with arguments ({"latitude": 123.1, "longitude": -343.1})"
+            #extract ^ tool and arguments
+            #eval() converts ^(JSON string) to python dictionary
             for tool_call in response.choices[0].message.tool_calls:
                 tool_name = tool_call.function.name
                 tool_args = eval(tool_call.function.arguments)  # Note: eval is used here for simplicity
@@ -101,9 +116,14 @@ class MCPClient:
                 print(f"\nCalling tool: {tool_name} with args: {tool_args}")
 
                 # Call the tool via MCP
+                #sends message to weather.py server
                 result = await self.session.call_tool(tool_name, tool_args)
+                #after / bc of ^
+                #get_forecast( tool) function runs
+                #calls NWS api (weather)
+                #gets the weather data
                 
-                # Add tool result to messages
+                # Add tool result to messages(so openAi can see it)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
@@ -112,12 +132,14 @@ class MCPClient:
 
             # Get next response from OpenAI
             response = await self.openai.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5-mini",
                 messages=messages,
                 tools=available_tools
             )
 
         # Return final response
+        #has tool results / data here
+        #formulates into natrual language response
         return response.choices[0].message.content
 
     # Chat Loop function (may replace)
