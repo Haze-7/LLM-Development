@@ -34,7 +34,7 @@ class MCPClient:
         if not (is_python):
             raise ValueError("Server script must be a .py file")
 
-        command = "python" if is_python else "error"
+        command = "python3" if is_python else "error"
         server_params = StdioServerParameters(
             command=command,
             args=[server_script_path],
