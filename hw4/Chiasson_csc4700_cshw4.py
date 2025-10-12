@@ -11,7 +11,10 @@ import os
 import time # for tracking sleep function
 import requests
 import argparse
+import chromadb
+from chromadb.utils import embedding_functions
 
+from datetime import datetime
 #load environmental variables
 load_dotenv('.env')
 
@@ -30,9 +33,126 @@ client = OpenAI(api_key = key)
 #iterate through, get file
 
 class APIModels():
+    """
+    Handles LLM API interactions with RAG capabilities.
+    """
 
     def __init__(self):
+        """
+        Initialize OpenAI client and ChromaDB with embeddings.
+        """
         self.client = OpenAI(api_key = key)
+
+        self.chrome_client = chromadb.PersistentClient(path="./kb")
+
+
+        self.embedding_function = embedding_functions.OpenAIEmbeddingFunction(
+            api_key = os.getenv("OPENAI_API_KEY"),
+            model_name = "text-embedding-3-small"
+        )
+
+    def chunk_text(self, text, chunk_size = 500, overlap = 0):
+        """
+        Split text into chunks
+
+        Arguments:
+        text: Text that we will be chunking
+        chunk_size: # of characters per chunk (default to 512)
+        overlap: Number of overlapping characters between neighboring chunks (default to 0)
+        """
+        if overlap >= chunk_size:
+            raise ValueError("Overlap must be smaller than chunk size.")
+        step = chunk_size - overlap 
+        return [text[i:i + chunk_size] for i in range(0, len(text), step)]#set starting positions, extract
+
+
+    def chromadb_setup(self, dataset_path = "dev-v2.0.json", chunk_size = 512, overlap = 50):
+        """
+        Extract contents of dataset, chunk them, and store in chromaDB
+
+        Arguments:
+        dataset_path: The path / name of the dataset to be used/analyzed.
+        chunk_size: # of characters per chunk (default to 512)
+        overlap: Number of overlapping characters between neighboring chunks (default to 50)
+        """
+        #load dataset
+        with open(dataset_path, "r") as file:
+            dataset = json.load(file)
+
+        #get / create Chrome DB collection        
+        collection = client.get_or_create_collection(
+            name ="dataset_contexts", 
+            embedding_function = self.embedding_function
+        )
+
+        #track unique ids & total # of chunks
+        chunk_id = 0
+        total_chunks = 0
+
+        #extract all context from full dataset/ chunk
+        for entry in dataset["data"]:
+            title = entry.get("title", "Unknown Title") #topic title of question
+
+            for paragraph in entry["paragraphs"]:
+                context = paragraph["context"]
+
+                #skip / don't store questions w/o context in chroma DB database
+                #reason: no need to, just use surrounding / other questions context instead
+                if not context:
+                    continue
+
+                #get all questions ids from paragraph
+                question_ids = [qa["id"] for qa in paragraph["qas"]]
+                
+                #chunk context
+                chunks = self.chunk_text(context, chunk_size, overlap)
+
+                #store chunks in chromeDB w/ upsert
+                for chunk in chunks:
+                  collection.upsert(
+                      ids = [f"chunk){chunk_id}"],
+                      documents = [chunk],
+                      metadata = [{
+                          "title": title,
+                          "question_ids": json.dumps(question_ids),
+                          "full_context": context #full context before chunking to compare/trace
+                      }]
+                  )
+                  chunk_id += 1 #iterate to keep unique
+                  total_chunks += 1 #keep track /update total # of chunks
+        print(f"ChromaDB setup complete. Stored {total_chunks} chunks from all contexts.")
+        return collection
+
+
+    def retrieve_context(self, question, n_results = 5):
+        """
+        Retrieve / gather relevant chroma chunks for a question from ChromaDB
+
+        Arguments:
+        question: The question were finding context for
+        n_results: # of relevant chunks to retrieve / gather (default to 5)
+
+        Returns:
+        Combined string of retrieved context chunks
+        """
+        #get collection of contexts
+        collection = self.chroma_client.get_collection(
+            name = "dataset_contexts",
+            embedding_funtion = self.embedding_function
+        )
+
+        #perform vector semantic search
+        results = collection.query(
+            query_texts = [question],
+            n_results = n_results
+        )
+
+        #combine retrieved chunks
+        retrieved_contexts = results['documents'][0]
+        combined_context = "\n\n".join(retrieved_contexts)
+
+        return combined_context        
+
 
     def get_questions(self, dataset_path = "dev-v2.0.json", limit = 500):
         """
@@ -51,6 +171,7 @@ class APIModels():
 
         for entry in dataset["data"]:
             for paragraph in entry["paragraphs"]:
+                context = paragraph.get("context", "")
                 for qa in paragraph["qas"]:
                     if not qa.get("is_impossible", False): #skip if is_impossible == False
                         #extract correct answers:
@@ -59,18 +180,21 @@ class APIModels():
                         questions.append({
                             "id": qa["id"], 
                             "question": qa["question"],
-                            "answers": answers
+                            "answers": answers,
+                            "context": context #include even if empty for now
                         }) #add entry to new list
+
                         if len(questions) >= limit:
                             return questions
-        return questions # in case dataset is smaller than 500 entries (maybe get rid of )
+        return questions
 
-    def openai_batch(self, limit = 500):
+    def openai_batch(self, limit = 500, use_rag = True):
         """
         Run API call to gpt-5-nano as a student answering questions in batch configuration.
 
         Arguments:
         limit: Sets the # of questions to read (excluding is_impossible).
+        use_rag: Boolean decision on if to use RAG(get context before answering)
 
         Source Used:
         https://platform.openai.com/docs/guides/batch
@@ -89,7 +213,7 @@ class APIModels():
                     "type": "object",
                     "properties": {
                         "answer": {
-                            "type": "object",
+                            "type": "string", #changed
                             "description": "Student's answer to the given question."
                         },
                     },
@@ -98,9 +222,16 @@ class APIModels():
             }
         }
 
-        #prepare batch file
+        #prepare batch file (now with RAG)
         with open("batch_input_file", "w") as file:
             for question in question_set:
+                #rag decision
+                if use_rag:
+                    context = self.retrieve_context(question["question"], n_results = 5)
+                    prompt = f"Context: {context}\n\nQuestion: {question['question']}\n\nAnswer based on the provided context:"
+                else:
+                    prompt = question["question"]
+
                 line = {
                     "custom_id": question["id"],
                     "method": "POST",
@@ -109,8 +240,8 @@ class APIModels():
                         "model": "gpt-5-nano",
                         "reasoning_effort": "minimal",
                         "messages": [
-                            {"role": "developer", "content": "Your job is to take in questions and provide answers to them. When offered a multiple choice, select the correct choice."},
-                            {"role": "user", "content": question["question"]},
+                            {"role": "developer", "content": "Your job is to take in questions and provide concise answers to them based on the provided context."},
+                            {"role": "user", "content": prompt},
                         ],
                         "response_format": openai_batch_schema
                     }
@@ -118,44 +249,39 @@ class APIModels():
                 file.write(json.dumps(line) + "\n") #dump / output (change later)
 
 
-        #Next, upload .jsonl file to openAi/ store file ID
-        #client = OpenAI()
-
+        #Next, upload .jsonl file to openAi
         batch_file = self.client.files.create(
             file = open("batch_input_file", "rb"),
             purpose = "batch"
         )
-
+        #get back file id to track
         file_id = batch_file.id
 
-        #create/ setup tracker file
+        #create / setup tracker file
         tracker_file = "tracker_file.json"
-        #create /set tracker data format/structure
+        #add file id to tracker file
         tracker_data = {"input_file_id": file_id}
 
-        #write to file /
+        #write to file
         with open (tracker_file, "w") as track_file:
             json.dump(tracker_data, track_file, indent = 2)
 
-        #Next, create batch job
-        #load file_id from tracker file
+        #create batch job
         with open(tracker_file, "r") as track_file:
             tracker_data = json.load(track_file)
 
         #setup / useable for batch job
         input_file_id = tracker_data["input_file_id"]
 
-        #now, create batch job
+        #submit batch job to OpenAI
         batch_job = self.client.batches.create(
             input_file_id = input_file_id,
             endpoint="/v1/chat/completions",
             completion_window = "24h",
             metadata = {
-                "description": "GPT-5 Nano HW3 Batch Job",
+                "description": "GPT-5 Nano HW4 Batch Job with RAG"
             }
         )
-
-        #include/ add batch job Id in tracker file
         tracker_data["batch_job_id"] = batch_job.id
 
         #write to / update tracker file
@@ -163,11 +289,7 @@ class APIModels():
             json.dump(tracker_data, track_file, indent = 2)
 
 
-        #track / check batch job status: (initial / first time (may remove / redundant with loop below))
-        # batch_job = self.client.batches.retrieve(batch_job.id)
-        # batch_status = batch_job.status # get status for selected batch job ( by id)
-        # print("Batch Job Status:", batch_status) #or just batch?
-
+        #track status
         last_status = None
 
         #make periodic with while loop (sleep for 60 seconds)
@@ -189,14 +311,10 @@ class APIModels():
                     time.sleep(20)
                     continue 
                           
-                print("Batch job completed successfully.") # move on from here, may drop to end
-                #get results / output
-                #start edit call
-                output_file_id = batch_job.output_file_id # get id of output file for batch job (field)
-                batch_results = self.client.files.content(output_file_id) #use ^ to get output file content (batch results)
+                print("Batch job completed successfully.")
+                batch_results = self.client.files.content(output_file_id) 
 
                 #save to local file (suggested by documentation)
-
                 if hasattr(batch_results, "read"):
                     batch_results_data = batch_results.read()
                 else:
@@ -208,7 +326,6 @@ class APIModels():
                 #get question text (create dictionary from original set to get question text from ID) (for display purposes)
                 id_to_question = {q["id"]: q["question"] for q in question_set}
 
-                #finally, parse results file to get answers
                 results = []
 
                 with open("batch_results.jsonl", "r") as batch_results_file:
@@ -216,20 +333,12 @@ class APIModels():
                         result_line = json.loads(line)
                         question_id = result_line.get("custom_id")
 
-
-                        # Extract the answer from choices[0].message.content
-                        #answer_json = result_line.get("response", {}).get("body", {}).get("choices", [])[0].get("message", {}).get("content", "{}")
                         answer_json = (
                             result_line.get("response", {}).get("body", {}).get("choices", [])[0].get("message", {}).get("content", "{}")
                         )
                         try:
                             answer_data = json.loads(answer_json)
-                            #student_answer = answer_data.get("answer", {}).get("value") or answer_data.get("answer", {}).get("description")
-                            answer_field = answer_data.get("answer", {})
-                            student_answer = (
-                                answer_field.get("description")  # base questions
-                                or answer_field.get("content")   # multiple choice fallback
-                            )
+                            student_answer = answer_data.get("answer", "")
                         except json.JSONDecodeError:
                             student_answer = answer_json
 
@@ -244,17 +353,19 @@ class APIModels():
 
                     #output nicely?:
                     for result in results:
-                        #print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
                         print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
 
                     break #exit while loop / end program
 
             elif batch_status == "failed":
                 print("Batch job failed. Please check the details.")
+                break
             elif batch_status == "cancelled":
                 print("Batch job was cancelled.")
+                break
             elif batch_status == "expired":
                 print("Batch job ran out of time and expired.")
+                break
 
             time.sleep(20)  # Sleep for 20 seconds before checking again
 
