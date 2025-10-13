@@ -342,6 +342,16 @@ class APIModels():
                             "answer": student_answer
                         })
 
+                    #save results withh model prefix for grader
+                    with open("batch_results_for_grader.jsonl", "w") as grader_file:
+                        for result in results:
+                            result_with_prefix = {
+                                "id": f"gpt-5-nano_{result['id']}",
+                                "question": result["question"],
+                                "answer": result["answer"]
+                            }
+                            grader_file.write(json.dumps(result_with_prefix) + "\n")
+                          
                     #output nicely?:
                     for result in results:
                         print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
@@ -415,9 +425,15 @@ class APIModels():
                 "answer": answer
             })
 
-            #append to file
+            # Append to file WITH prefix for grader
+            result_with_prefix = {
+                "id": f"qwen3-8b_{question['id']}",
+                "question": question["question"],
+                "answer": answer
+            }
+
             with open("openrouter_results.jsonl", "a") as file:
-                file.write(json.dumps(results[-1]) + "\n")
+                file.write(json.dumps(result_with_prefix) + "\n")
             
             #progress tracking
             print(f"Processed question {idx}/{min(limit, len(questions))}")
@@ -445,7 +461,7 @@ class APIModels():
 
         #set which result files to grade / attach/ link to their models
         model_results = {
-            "gpt-5-nano": "batch_results.jsonl",
+            "gpt-5-nano": "batch_results_for_grader.jsonl",
             "qwen3-8b": "openrouter_results.jsonl"
         }
 
@@ -479,10 +495,11 @@ class APIModels():
                     for line in grader_file:
                         result_data = json.loads(line)
                         question_id = result_data['id']
-                        question = id_to_question.get(question_id, "Question Missing")
-                        student_response = result_data.get("answer", "")
+                        original_question_id = question_id.replace("gpt-5-nano_", "").replace("qwen3-8b_", "")
                         
-                        correct_answers = id_to_correct_answers.get(question_id, [])
+                        question = id_to_question.get(original_question_id, "Question Missing")
+                        student_response = result_data.get("answer", "")
+                        correct_answers = id_to_correct_answers.get(original_question_id, [])
 
                         #debug output:
                         # print(f"DEBUG - Question ID: {question_id}")
@@ -510,7 +527,7 @@ class APIModels():
                         
                         #create batchline for gpt-5 mini
                         batch_line = {
-                            "custom_id": f"{model}_{question_id}",
+                            "custom_id": question_id,
                             "method": "POST",
                             "url": "/v1/chat/completions",
                             "body": {
@@ -603,8 +620,8 @@ class APIModels():
                     results = []
 
                     #track modelscores for final percentages
-                    model_scores = {"gpt-5-nano": [], "quen3-8b": []}
-                    model_detailed_results = {"gpt-5-nano": [], "quen3-8b": []} #detailed results by model for output files
+                    model_scores = {"gpt-5-nano": [], "qwen3-8b": []}
+                    model_detailed_results = {"gpt-5-nano": [], "qwen3-8b": []} #detailed results by model for output files
 
                     with open("grader_batch_results.jsonl", "r") as grader_batch_results_file:
                         for line in grader_batch_results_file:
@@ -683,6 +700,7 @@ class APIModels():
                                 print(f"  Incorrect Answers: {total - correct}")
                                 print(f"  Average Score (Accuracy): {percentage:.2f}%")
 
+                        break
                 elif grader_batch_status == "failed":
                     print("Batch job failed. Please check the details.")
                     break
