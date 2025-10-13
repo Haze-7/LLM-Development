@@ -204,7 +204,7 @@ class APIModels():
                     "type": "object",
                     "properties": {
                         "answer": {
-                            "type": "string", #changed
+                            "type": "string",
                             "description": "Student's answer to the given question."
                         },
                     },
@@ -226,7 +226,7 @@ class APIModels():
                 line = {
                     "custom_id": question["id"],
                     "method": "POST",
-                    "url": "/v1/chat/completions", #may change
+                    "url": "/v1/chat/completions", 
                     "body": {
                         "model": "gpt-5-nano",
                         "reasoning_effort": "minimal",
@@ -237,7 +237,7 @@ class APIModels():
                         "response_format": openai_batch_schema
                     }
                 }
-                file.write(json.dumps(line) + "\n") #dump / output (change later)
+                file.write(json.dumps(line) + "\n") 
 
 
         #Next, upload .jsonl file to openAi
@@ -417,7 +417,7 @@ class APIModels():
                 answer = data["choices"][0]["message"]["content"]
             except (KeyError, IndexError, TypeError, requests.exceptions.RequestException):
                 print(f"Error on question")
-                answer = None
+                answer = None 
 
             results.append({
                 "id": question["id"],
