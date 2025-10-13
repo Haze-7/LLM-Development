@@ -23,15 +23,6 @@ router_key = os.getenv("OPENROUTER_API_KEY")
 
 #establish client
 client = OpenAI(api_key = key)
-
-
-
-#Extract first 500 questions/ answers
-#if == is_impossible, skip
-
-
-#iterate through, get file
-
 class APIModels():
     """
     Handles LLM API interactions with RAG capabilities.
@@ -43,8 +34,7 @@ class APIModels():
         """
         self.client = OpenAI(api_key = key)
 
-        self.chrome_client = chromadb.PersistentClient(path="./kb")
-
+        self.chroma_client = chromadb.PersistentClient(path="./kb")
 
         self.embedding_function = embedding_functions.OpenAIEmbeddingFunction(
             api_key = os.getenv("OPENAI_API_KEY"),
@@ -79,8 +69,8 @@ class APIModels():
         with open(dataset_path, "r") as file:
             dataset = json.load(file)
 
-        #get / create Chrome DB collection        
-        collection = client.get_or_create_collection(
+        #get / create Chroma DB collection        
+        collection = self.chroma_client.get_or_create_collection(
             name ="dataset_contexts", 
             embedding_function = self.embedding_function
         )
@@ -107,12 +97,12 @@ class APIModels():
                 #chunk context
                 chunks = self.chunk_text(context, chunk_size, overlap)
 
-                #store chunks in chromeDB w/ upsert
+                #store chunks in chromaDB w/ upsert
                 for chunk in chunks:
                   collection.upsert(
-                      ids = [f"chunk){chunk_id}"],
+                      ids = [f"chunk_{chunk_id}"],
                       documents = [chunk],
-                      metadata = [{
+                      metadatas = [{
                           "title": title,
                           "question_ids": json.dumps(question_ids),
                           "full_context": context #full context before chunking to compare/trace
@@ -138,7 +128,7 @@ class APIModels():
         #get collection of contexts
         collection = self.chroma_client.get_collection(
             name = "dataset_contexts",
-            embedding_funtion = self.embedding_function
+            embedding_function = self.embedding_function
         )
 
         #perform vector semantic search
@@ -187,6 +177,7 @@ class APIModels():
                         if len(questions) >= limit:
                             return questions
         return questions
+
 
     def openai_batch(self, limit = 500, use_rag = True):
         """
@@ -370,12 +361,13 @@ class APIModels():
             time.sleep(20)  # Sleep for 20 seconds before checking again
 
 
-    def openrouter_serial(self, limit = 500):
+    def openrouter_serial(self, limit = 500, use_rag = True):
         """
-        Run API call to qwen3/ qwen3-8b as a student answering questions in serial configuration.
+        Run API call to qwen3/ qwen3-8b as a student answering questions in serial configuration, now with RAG.
 
         Arguments:
         limit: Sets the # of questions to read (excluding is_impossible).
+        use_rag: Boolean decision on if to use RAG(get context before answering)
         """
 
         questions = self.get_questions(limit = limit)
@@ -393,11 +385,18 @@ class APIModels():
             pass
 
         for idx, question in enumerate(questions[:limit], 1):
+            
+            if use_rag:
+                context = self.retrieve_context(question["question"], n_results = 5)
+                prompt = f"Context: {context}\n\nQuestion: {question['question']}\n\nAnswer based on the provided context:"
+            else:
+                prompt = question["question"]
+
             body = {
                 "model": "qwen/qwen3-8b",
                 "messages": [
-                    { "role": "system", "content": "Your job is to take in questions and provide answers to them. Answer each question with only the final concise answer. Do not provide explanations, context, or markdown formatting."}, 
-                    { "role": "user", "content": question["question"]}
+                    { "role": "system", "content": "Your job is to take in questions and provide concise answers based on the provided context. Answer with only the final answer, no explanations."}, 
+                    { "role": "user", "content": prompt}
                 ]
             }
 
@@ -419,14 +418,12 @@ class APIModels():
             #append to file
             with open("openrouter_results.jsonl", "a") as file:
                 file.write(json.dumps(results[-1]) + "\n")
- 
+            
+            #progress tracking
             print(f"Processed question {idx}/{min(limit, len(questions))}")
 
         for result in results:
             print(f"Question ID: {result['id']}\nQuestion: {result['question']}\nAnswer: {result['answer']}\n")
-
-    
-        #break #exit while loop / end program
 
 
     def openai_grader(self, limit = 500):
@@ -446,7 +443,7 @@ class APIModels():
         id_to_correct_answers = {question["id"]: question["answers"] for question in questions}
         
 
-        #result files from batch (gpt-5-nano) & streaming (qwen3-8b)
+        #set which result files to grade / attach/ link to their models
         model_results = {
             "gpt-5-nano": "batch_results.jsonl",
             "qwen3-8b": "openrouter_results.jsonl"
@@ -487,6 +484,12 @@ class APIModels():
                         
                         correct_answers = id_to_correct_answers.get(question_id, [])
 
+                        #debug output:
+                        # print(f"DEBUG - Question ID: {question_id}")
+                        # print(f"DEBUG - Correct answers: {correct_answers}")
+                        # print(f"DEBUG - Student response: {student_response}")
+                        # print("---")
+
                         grading_prompt = f"""
                             You are a teacher tasked with determining whether a student’s answer to a question was correct,
                             based on a set of possible correct answers. You must only use the provided possible correct answers
@@ -506,7 +509,6 @@ class APIModels():
                             """
                         
                         #create batchline for gpt-5 mini
-
                         batch_line = {
                             "custom_id": f"{model}_{question_id}",
                             "method": "POST",
@@ -539,20 +541,14 @@ class APIModels():
             #write to file
             with open (grader_tracker_file, "w") as grader_track_file:
                 json.dump(grader_tracker_data, grader_track_file, indent = 2)
-
-            with open(grader_tracker_file, "r") as grader_track_file:
-                grader_tracker_data = json.load(grader_track_file)
             
-            #setup / usable for batch job
-            grader_file_id = grader_tracker_data["input_file_id"]
-
             #create batch job
             grader_batch_job = self.client.batches.create(
                 input_file_id = grader_file_id,
                 endpoint = "/v1/chat/completions",
                 completion_window="24h",
                 metadata = {
-                    "description": "GPT-5 Mini HW3 Grader Batch Job"
+                    "description": "GPT-5 Mini HW4 Grader Batch Job"
                 }
             )
 
@@ -591,7 +587,6 @@ class APIModels():
                     print("Grading Batch job completed successfully.")
 
                     #get results / output
-                    grader_output_file_id = grader_batch_job.output_file_id
                     grader_batch_results = self.client.files.content(grader_output_file_id)
 
                     #save to local file(may not need)
@@ -607,10 +602,26 @@ class APIModels():
                     #parse results file for output data
                     results = []
 
+                    #track modelscores for final percentages
+                    model_scores = {"gpt-5-nano": [], "quen3-8b": []}
+                    model_detailed_results = {"gpt-5-nano": [], "quen3-8b": []} #detailed results by model for output files
+
                     with open("grader_batch_results.jsonl", "r") as grader_batch_results_file:
                         for line in grader_batch_results_file:
                             result_line = json.loads(line)
-                            question_id = result_line.get("custom_id")
+                            full_id = result_line.get("custom_id")
+
+                            #parse model name / question id
+                            if full_id.startswith("gpt-5-nano_"):
+                                model_name = "gpt-5-nano"
+                                question_id_from_grader = full_id.replace("gpt-5-nano_", "")
+                            elif full_id.startswith("qwen3-8b_"):
+                                model_name = "qwen3-8b"
+                                question_id_from_grader = full_id.replace("qwen3-8b_", "")
+                            else:
+                                print(f"Unknown model in ID: {full_id}")
+                                continue
+
                             # Grab the response body
                             body = result_line.get("response", {}).get("body", {})
 
@@ -628,26 +639,59 @@ class APIModels():
                                 score = structured_output.get("score")
                                 explanation = structured_output.get("explanation")
 
+                                #track scores by model
+                                if score is not None:
+                                    model_scores[model_name].append(1 if score else 0) #convert boolean score to integer
+                                    model_detailed_results[model_name].append({
+                                        "id": full_id,
+                                        "score": score,
+                                        "explanation": explanation
+                                    })
+
                             except (KeyError, IndexError, TypeError, json.JSONDecodeError):
                                 score = None
                                 explanation = None
 
                             results.append({
-                                "id": question_id,
+                                "id": full_id,
                                 "score": score,
                                 "explanation": explanation
                             })
-
+                            
                         for result in results:
                             print(f"Question ID: {result['id']}\nScore: {result['score']}\nExplanation: {result['explanation']}\n")
                         
-                        break
+                        #save output files
+                        current_date = datetime.now().strftime("%Y-%m-%d")
+
+                        for model_name, detailed_results in model_detailed_results.items():
+                            output_filename = f"{model_name}-RAG-{current_date}-hw4.json"
+                            with open(output_filename, "w") as output_file:
+                                json.dump(detailed_results, output_file, indent = 2)
+                            print(f"Saved {model_name} results to {output_filename}")
+                        
+                        #calc / print scores / stats
+                        print("Grading Summary")
+                        for model_name, scores in model_scores.items():
+                            if scores:
+                                total = len(scores)
+                                correct = sum(scores) #get all scores(bool) where answer is true (correct)
+                                percentage = (correct / total) * 100
+                                print(f"\n{model_name.upper()}:")
+                                print(f"  Total Questions: {total}")
+                                print(f"  Correct Answers: {correct}")
+                                print(f"  Incorrect Answers: {total - correct}")
+                                print(f"  Average Score (Accuracy): {percentage:.2f}%")
+
                 elif grader_batch_status == "failed":
                     print("Batch job failed. Please check the details.")
+                    break
                 elif grader_batch_status == "cancelled":
                     print("Batch job was cancelled.")
+                    break
                 elif grader_batch_status == "expired":
                     print("Batch job ran out of time and expired.")
+                    break
 
                 time.sleep(20)  # Sleep for 20 seconds before checking again
 
@@ -658,26 +702,59 @@ def main():
     API = APIModels()
 
     # Command Line Interface
-    parser = argparse.ArgumentParser(description = "API Interaction")
+    parser = argparse.ArgumentParser(description = "API Interaction with dataset using RAG")
 
     #Define args
     #Activity Selector
-    parser.add_argument("activity", type=str, choices=["openai_batch", "openrouter_serial", "openai_grader"], help = "Select Model / Format to run for answering questions.")
-
-    #b. An argument (--limit) that sets the limit / number of questions to read
+    parser.add_argument("activity", type=str, choices=["chromadb_setup", "openai_batch", "openrouter_serial", "openai_grader"], help = "Select Model / Format to run for answering questions.")
+    #An argument (--limit) that sets the limit / number of questions to read
     parser.add_argument("--limit", type = int, default = 500, help = "Sets the number of questions (excluding impossible) to process.")
-
+    #An argument (--no_rag) that sets if rag will be used or not(if added, skips / doesnt use rag)
+    parser.add_argument("--no_rag", action = "store_true", help = "Disable Rag(don't retrieve context)")
+    #An argument (--chunk_size) that sets size of text chunks for chromaDB
+    parser.add_argument("--chunk-size", type = int, default = 500, help = "Size of text chunks for ChromaDB (default: 500)")
+    #An argument (--overlap) that sets size of overlap between chunks
+    parser.add_argument("--overlap", type = int, default = 50, help = "Overlap between chunks (default: 50)")
     
     args = parser.parse_args()
 
     limit = args.limit
+    use_rag = not args.no_rag
+    chunk_size = args.chunk_size
+    overlap = args.overlap
+
     # Handle activity choices running
-    if args.activity == "openai_batch":
-        API.openai_batch(limit)
+    if args.activity == "chromadb_setup":
+        API.chromadb_setup(chunk_size = chunk_size, overlap = overlap)
+    elif args.activity == "openai_batch":
+        API.openai_batch(limit, use_rag)
     elif args.activity == "openrouter_serial":
-        API.openrouter_serial(limit)
+        API.openrouter_serial(limit, use_rag)
     elif args.activity == "openai_grader":
         API.openai_grader(limit)
 
 if __name__ == "__main__":
     main()
+
+
+#Steps / Run Procedure:
+"""
+# Step 1: Setup ChromaDB (run once)
+python Chiasson_csc4700_cshw4.py chromadb_setup
+
+# Step 2: Get GPT-5-nano answers with RAG
+python Chiasson_csc4700_cshw4.py openai_batch
+
+# Step 3: Get qwen3-8b answers with RAG
+python Chiasson_csc4700_cshw4.py openrouter_serial
+
+# Step 4: Grade both models
+python Chiasson_csc4700_cshw4.py openai_grader
+
+# Optional: Run without RAG
+python Chiasson_csc4700_cshw4.py openai_batch --no-rag
+
+# Optional: Custom chunking
+python Chiasson_csc4700_cshw4.py setup_db --chunk-size 1000 --overlap 100
+
+"""
