@@ -37,7 +37,7 @@ class MultiServerMCPClient:
 
         # Set up server parameters
         server_params = StdioServerParameters(
-            command="python3",
+            command="python",
             args=[server_script_path],
             env=None
         )
