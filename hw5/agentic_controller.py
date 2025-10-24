@@ -39,8 +39,14 @@ import os
 import time
 import random
 
+#new imports
+import argparse
+import requests
+# import chromadb
+# from chromadb.utils import embedding_function
+
 # Load environment variables
-load_dotenv()
+load_dotenv('.env')
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Tool Catalog ---------------------------------------------------------------------------------------------------------
@@ -54,10 +60,11 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "type": "object",
         "description": "Get the current weather",
         "properties": {
-            "city":  {"type": "string", "minLength": 1},
+            "city":  {"type": "string", "minLength": 1}, #city name (as full name : Baton Rouge, New York, Los Angeles)
+            "state": {"type": "string", "minLength": 1, "maxLength": 2}, #state name, as CA, LA, NY (model auto converts reg names to these)
             "units": {"type": "string", "enum": ["metric", "imperial"], "default": "metric"}
         },
-        "required": ["city"],
+        "required": ["city", "state"],
         "additionalProperties": False
     },
     # Tool 2: knowledge-base search tool
@@ -70,6 +77,17 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         },
         "required": ["query"],
         "additionalProperties": False
+    },
+    #Tool 3: 
+    "serviceNow.getService": {
+        "type": "object",
+        "description": "Get information on available services related to user query.",
+        "properties": {
+            "query": {"type": "string", "minLength": 3},
+            "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}
+        },
+        "required": ["query"],
+        "additionalProperties": False
     }
     # STUDENT_COMPLETE --> You need to add a new tool schema for your custom tool
 }
@@ -79,6 +97,8 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
 TOOL_HINTS: Dict[str, Dict[str, Any]] = {
     "weather.get_current": {"avg_ms": 400, "avg_tokens": 50},
     "kb.search":           {"avg_ms": 120, "avg_tokens": 30},
+    #add my own for tool 3
+    "serviceNow.getService": {"avg_ms": 5, "avg_tokens": 5}, #temp for now, need to update with testing
 }
 
 # Controller State -----------------------------------------------------------------------------------------------------
@@ -284,12 +304,18 @@ def plan_next_action(state: ControllerState) -> Tuple[str, Dict[str, Any], str]:
             # STUDENT_COMPLETE --> You may need to change this to be in line with your custom weather tool implementation
             "examples": {
                 "weather.get_current": [
-                    {"city": "Paris", "units": "metric"},
-                    {"city": "New York"}  # units defaults via schema
+                    {"city": "Baton Rouge", "state": "LA", "units": "imperial"},
+                    {"city": "New York", "state": "NY", "units": "metric"},
+                    {"city": "Los Angeles", "state": "CA"}  # units defaults to imperial
                 ],
                 "kb.search": [
                     {"query": "VPN policy for contractors", "k": 3}
-                ]
+                ],
+                #include my own for service bot
+                "serviceNow.get_service": [
+                    {"query": "password reset"},
+                    {"query": "VPN access"}
+                ],
             }.get(name, [])
         }
         tool_specs.append(spec)
@@ -368,15 +394,139 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
         if action == "weather.get_current":  # STUDENT_COMPLETE --> make this an actual weather API call
             # Simulate an external API call to a weather service
             # (In production, you would call your real weather API here.)
-            payload = {
-                "city": args["city"],
-                "units": args.get("units", "metric"),
-                "temp": 18.2,
-                "conditions": "clear"
-            }
-            obs = f"Weather in {payload['city']}: {payload['temp']}° ({payload['conditions']})"
-            return True, obs, payload, int((time.time() - t0) * 1000)
+           city = args["city"]
+           state = args["state"]
+           units = args.get("units", "imperial")
 
+           #API calls setup
+           NWS_API_BASE = "https//api.weather.gov"
+           USER_AGENT = "agentic-controller/1.0 (Educational Project)"
+
+           #Handling
+           #try:
+               #geocode location from city name (get longitude/ latitude)
+                nominatim_url = "https://nominatim.openstreetmap.org/search"
+                nominatim_headers = {"User-Agent": USER_AGENT}
+                nominatim_params = {
+                    "city": city,
+                    "state": state,
+                    "country": "USA",
+                    "format": "json",
+                    "limit": 1
+                }
+
+                geo_response = requests.get(
+                    nominatim_url,
+                    params = nominatim_params,
+                    headers = nominatim_headers,
+                    timeout = 10
+                )
+                geo_response.raise_for_status()
+                geo_data = geo_response.json() #get geo data to use
+
+                #Error handling
+                if not geo_data:
+                    error_msg = f"Location not found: {city}, {state}. Check spelling or state code."
+                    return False, error_msg, {}, int((time.time() - t0) * 1000)
+                
+                #get Coordinates (from json)
+                latitude = float(geo_data[0]["lat"])
+                longitude = float(geo_data[0]["lon"])
+                display_name = geo_data[0].get("display_name", f"{city}, {state}")
+
+                return (
+                    False,
+                    error_msg,
+                    {},
+                    int((time.time() - t0) * 1000)
+                )
+           
+                #send coords to Forecast URL
+                nws_headers = {
+                    "User-Agent": USER_AGENT,
+                    "Accept": "application/geo+json"
+                }
+
+                points_url = f"{NWS_API_BASE}/points/{lat:.4f},{lon:.4f}" #Ex: "https://api.weather.gov/points/30.4515,-91.1871"
+
+                points_response = requests.get(points_url, headers = nws_headers, timeout = 10)
+                points_response.raise_for_status()
+                points_data = points_response.json()
+
+                #extract forecase URL from points endpoint
+                forecast_url = points_data["properties"]["forecast"]
+                forecast_office = points_data["properties"]["cwa"] #weather office code
+
+                #get actual weather forecase
+                forecast_response = requests.get(forecast_url, headers = nws_headers, timeout=10)
+                forecast_response.raise_for_status()
+                forecast_data = forecast_response.json()
+
+                #extract current forecast period
+                periods = forecast_data["properties"]["periods"]
+                if not periods:
+                    return False, "No forecast data available for this location", {}, int((time.time() - t0) * 1000)
+                
+                current_period = periods[0]
+
+                #temperature unit conversion
+                temp_value = current_period["temperature"]      # e.g., 72
+                temp_unit = current_period["temperatureUnit"]  # "F" or "C"
+                
+                # Convert to metric if requested
+                if units == "metric" and temp_unit == "F":
+                    temp_value = round((temp_value - 32) * 5.0 / 9.0, 1)
+                    temp_unit = "C"
+                elif units == "imperial" and temp_unit == "C":
+                    temp_value = round((temp_value * 9.0 / 5.0) + 32, 1)
+                    temp_unit = "F"
+
+                #build payload:
+                payload = {
+                    "location": {
+                        "city": city,
+                        "state": state,
+                        "display_name": display_name,
+                        "latitude": round(lat, 4),
+                        "longitude": round(lon, 4),
+                        "nws_office": forecast_office
+                    },
+                    "current": {
+                        "temperature": temp_value,
+                        "unit": temp_unit,
+                        "conditions": current_period["shortForecast"],
+                        "detailed_forecast": current_period["detailedForecast"],
+                        "wind_speed": current_period.get("windSpeed", "Unknown"),
+                        "wind_direction": current_period.get("windDirection", "Unknown"),
+                        "period_name": current_period["name"],
+                        "is_daytime": current_period.get("isDaytime", True)
+                    },
+                    "next_periods": []
+                }
+                
+                # Add next few forecast periods for context
+                for period in periods[1:4]:  # Next 3 periods (skip first, which is current)
+                    payload["next_periods"].append({
+                        "name": period["name"],
+                        "temperature": period["temperature"],
+                        "unit": period["temperatureUnit"],
+                        "forecast": period["shortForecast"]
+                    })
+
+                #create consise obvservation for planner
+                unit_symbol = "°F" if temp_unit == "F" else "°C"
+                obs = (
+                    f"Weather in {city}, {state}: "
+                    f"{current_period['name']} - {temp_value}{unit_symbol}, {current_period['shortForecast']}. "
+                    f"Wind: {current_period.get('windSpeed', 'N/A')} {current_period.get('windDirection', '')}."
+                )
+                
+                return True, obs, payload, int((time.time() - t0) * 1000)
+            # except requests.exceptions.Timeout:
+            #     return False, "Weather API request timed out. Try again.", {}, int((time.time() - t0) * 1000)
+                      
+           #get forecast from weather API
+        
         elif action == "kb.search":  # STUDENT_COMPLETE --> make this a vector search over a Chroma database
             # Simulate a KB or vector database search
             k = int(args.get("k", 5))
@@ -387,6 +537,9 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
             obs = f"Retrieved {len(results)} snippets"
             return True, obs, {"results": results}, int((time.time() - t0) * 1000)
         # STUDENT_COMPLETE --> you should add another tool here
+        elif action == "serviceNow.get_service":
+            #do action 
+            pass
         else:
             # Safety: no executor wired for this tool
             return False, f"No executor bound for tool: {action}", {}, int((time.time() - t0) * 1000)
@@ -494,6 +647,14 @@ if __name__ == "__main__":
     #         python agentic_controller.py "Why were they trying to catch the whale in Moby Dick?"
     #         python agentic_controller.py "What is today's weather like in Baton Rouge?"
     #         python agentic_controller.py "INSERT SOME QUERY HERE RELEVANT TO YOUR CUSTOM TOOL"
+
+    # Argparse
+    parser = argparse.ArgumentParser(description = "Agentic Controller determining Tool Usage to respond to user requests.")
+
+    parser.add_argument("query", type = str, help = "User Query/Prompt/Question to Controller.")
+
+    args = parser.parse_args()
+
 
 
     # Example end-to-end run:
