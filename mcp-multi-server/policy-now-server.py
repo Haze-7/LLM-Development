@@ -14,7 +14,7 @@ mcp = FastMCP("policy-now-bot")
 # Constants - OpenRouter API Configuration
 # Replace w/ policy now data
 #find out what type of model / system its using
-API_BASE = "https://openrouter.ai/api/v1" #may not need / replace
+API_BASE = "https://api.onspring.com/" #may not need / replace
 API_KEY = os.getenv("POLICYNOW_API_KEY")
 #MODEL_NAME = "qwen/qwen3-8b:free" #make policy now or something
 
