@@ -392,17 +392,25 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
     try:
         # Replace these with your real integrations
         if action == "weather.get_current":  # STUDENT_COMPLETE --> make this an actual weather API call
-            city = args["city"]
-            state = args["state"]
+            city = args.get("city", "").strip()
+            state = args.get("state", "").strip()
             units = args.get("units", "imperial")
 
+            # Early args validation
+            if not city or not isinstance(city, str):
+                return False, "city must be non-empty string", {}, int((time.time() - t0) * 1000)
+            if not state or not isinstance(state, str):
+                return False, "state must be non-emoty string", {}, int((time.time() - t0) * 1000)
+            if units not in ("metric", "imperial"):
+                return False, "units must be 'betric' or 'imperial'", {}, int((time.time() - t0) * 1000)
+
             # API calls setup
-            NWS_API_BASE = "https://api.weather.gov"  # FIX: Added missing colon
+            NWS_API_BASE = "https://api.weather.gov"
             USER_AGENT = "agentic-controller/1.0 (Educational Project)"
 
             # Handling
             try:
-                # Geocode location from city name (get longitude/latitude)
+                # Geocode location from city/ state name (get longitude/latitude)
                 nominatim_url = "https://nominatim.openstreetmap.org/search"
                 nominatim_headers = {"User-Agent": USER_AGENT}
                 nominatim_params = {
@@ -415,9 +423,9 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
 
                 geo_response = requests.get(
                     nominatim_url,
-                    params=nominatim_params,
-                    headers=nominatim_headers,
-                    timeout=10
+                    params = nominatim_params,
+                    headers = nominatim_headers,
+                    timeout = 10
                 )
                 geo_response.raise_for_status()
                 geo_data = geo_response.json()  # get geo data to use
@@ -432,6 +440,7 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
                 longitude = float(geo_data[0]["lon"])
                 display_name = geo_data[0].get("display_name", f"{city}, {state}")
            
+                #NWS forecast handling:
                 # Send coords to Forecast URL
                 nws_headers = {
                     "User-Agent": USER_AGENT,
@@ -439,17 +448,16 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
                 }
 
                 points_url = f"{NWS_API_BASE}/points/{latitude:.4f},{longitude:.4f}"
-                
-                points_response = requests.get(points_url, headers=nws_headers, timeout=10)
+                points_response = requests.get(points_url, headers = nws_headers, timeout = 10)
                 points_response.raise_for_status()
                 points_data = points_response.json()
 
                 # Extract forecast URL from points endpoint
                 forecast_url = points_data["properties"]["forecast"]
-                forecast_office = points_data["properties"]["cwa"]  # weather office code
+                #forecast_office = points_data["properties"]["cwa"]  # weather office code
 
                 # Get actual weather forecast
-                forecast_response = requests.get(forecast_url, headers=nws_headers, timeout=10)
+                forecast_response = requests.get(forecast_url, headers = nws_headers, timeout = 10)
                 forecast_response.raise_for_status()
                 forecast_data = forecast_response.json()
 
@@ -461,10 +469,10 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
                 current_period = periods[0]
 
                 # Temperature unit conversion
-                temp_value = current_period["temperature"]      # Example: 72
-                temp_unit = current_period["temperatureUnit"]  #Example:  "F" or "C"
+                temp_value = current_period["temperature"]
+                temp_unit = current_period["temperatureUnit"]
                 
-                # Convert to metric if requested
+                # Convert units
                 if units == "metric" and temp_unit == "F":
                     temp_value = round((temp_value - 32) * 5.0 / 9.0, 1)
                     temp_unit = "C"
@@ -474,67 +482,39 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
 
                 # Build payload
                 payload = {
-                    "location": {
-                        "city": city,
-                        "state": state,
-                        "display_name": display_name,
-                        "latitude": round(latitude, 4), 
-                        "longitude": round(longitude, 4),
-                        "nws_office": forecast_office
-                    },
-                    "current": {
-                        "temperature": temp_value,
-                        "unit": temp_unit,
-                        "conditions": current_period["shortForecast"],
-                        "detailed_forecast": current_period["detailedForecast"],
-                        "wind_speed": current_period.get("windSpeed", "Unknown"),
-                        "wind_direction": current_period.get("windDirection", "Unknown"),
-                        "period_name": current_period["name"],
-                        "is_daytime": current_period.get("isDaytime", True)
-                    },
-                    "next_periods": []
+                    "city": city,
+                    "state": state,
+                    "temperature": temp_value,
+                    "units": temp_unit,
+                    "conditions": current_period["shortForecast"],
+                    "wind_speed": current_period.get("windSpeed", "N/A"),
+                    "wind_direction": current_period.get("windDirection", "N/A"),
+                    "detailed_forecast": current_period["detailedForecast"],
+                    "observed_at": current_period.get("startTime", "N/A"),
+                    "source": "nws-api"
                 }
                 
-                # Add next few forecast periods for context
-                for period in periods[1:4]:  # Next 3 periods (skip first, which is current)
-                    payload["next_periods"].append({
-                        "name": period["name"],
-                        "temperature": period["temperature"],
-                        "unit": period["temperatureUnit"],
-                        "forecast": period["shortForecast"]
-                    })
-
                 # Create concise observation for planner
-                unit_symbol = "°F" if temp_unit == "F" else "°C"
-                obs = (
-                    f"Weather in {city}, {state}: "
-                    f"{current_period['name']} - {temp_value}{unit_symbol}, {current_period['shortForecast']}. "
-                    f"Wind: {current_period.get('windSpeed', 'N/A')} {current_period.get('windDirection', '')}."
-                )
-                
+                obs = f"Weather in {city}, {state}: {temp_value}°{temp_unit}, {current_period['shortForecast']}" #possible error w/ current period
+
                 return True, obs, payload, int((time.time() - t0) * 1000)
-            
-            # FIX: Added proper exception handling for the weather tool
+                        
             except requests.exceptions.Timeout:
-                return False, "Weather API request timed out. Try again.", {}, int((time.time() - t0) * 1000)
+                return False, "Weather API request timed out.", {}, int((time.time() - t0) * 1000)
             
-            except requests.exceptions.RequestException as e:
-                error_msg = f"Weather API error: {type(e).__name__}"
-                if hasattr(e, 'response') and e.response is not None:
-                    if e.response.status_code == 404:
-                        error_msg = f"Weather data not available for {city}, {state}. Location may be outside NWS coverage."
-                    elif e.response.status_code == 500:
+            except requests.exceptions.RequestException as error:
+                error_msg = "Weather API error"
+                if hasattr(error, 'response') and error.response is not None:
+                    if error.response.status_code == 404:
+                        error_msg = f"Weather data not available for {city}, {state}."
+                    elif error.response.status_code == 500:
                         error_msg = "National Weather Service API is temporarily unavailable."
                 return False, error_msg, {}, int((time.time() - t0) * 1000)
             
-            except (KeyError, IndexError) as e:
-                error_msg = f"Failed to parse weather data: {str(e)}. The API response format may have changed."
+            except (KeyError, IndexError, ValueError) as error:
+                error_msg = f"Failed to parse weather data: {type(error).__name__}", {}, int((time.time() - t0))
                 return False, error_msg, {}, int((time.time() - t0) * 1000)
             
-            except ValueError as e:
-                error_msg = f"Invalid coordinate data: {str(e)}"
-                return False, error_msg, {}, int((time.time() - t0) * 1000)
-        
         elif action == "kb.search":  # STUDENT_COMPLETE --> make this a vector search over a Chroma database
             # Simulate a KB or vector database search
             k = int(args.get("k", 5))
