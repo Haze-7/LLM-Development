@@ -42,12 +42,21 @@ import random
 #new imports
 import argparse
 import requests
-# import chromadb
-# from chromadb.utils import embedding_function
+import chromadb
+from chromadb.utils import embedding_functions
 
 # Load environment variables
 load_dotenv('.env')
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key = os.getenv("OPENAI_API_KEY"))
+
+#chromadb setup (from / based on hw4)
+chroma_client = chromadb.PersistentClient(path="./kb")
+
+# collection = self.chroma_client.get_or_create_collection(
+#     name ="dataset_contexts", 
+#     embedding_function = self.embedding_function
+# )
+
 
 # Tool Catalog ---------------------------------------------------------------------------------------------------------
 # the tool catalog provides precise JSON Schemas for arguments. This helps to prevent the model from inventing fields or
@@ -306,12 +315,12 @@ def plan_next_action(state: ControllerState) -> Tuple[str, Dict[str, Any], str]:
                 "weather.get_current": [
                     {"city": "Baton Rouge", "state": "LA", "units": "imperial"},
                     {"city": "New York", "state": "NY", "units": "metric"},
-                    {"city": "Los Angeles", "state": "CA"}  # units defaults to imperial
+                    {"city": "Los Angeles", "state": "CA"}  # units default to imperial
                 ],
                 "kb.search": [
                     {"query": "VPN policy for contractors", "k": 3}
                 ],
-                #include my own for service bot
+                #include my own for service bot (edit)
                 "serviceNow.get_service": [
                     {"query": "password reset"},
                     {"query": "VPN access"}
@@ -516,14 +525,41 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
                 return False, error_msg, {}, int((time.time() - t0) * 1000)
             
         elif action == "kb.search":  # STUDENT_COMPLETE --> make this a vector search over a Chroma database
-            # Simulate a KB or vector database search
-            k = int(args.get("k", 5))
-            results = [
-                {"doc_id": "kb-12", "snippet": "VPN and MFA are required for remote access."},
-                {"doc_id": "kb-31", "snippet": "Employees must complete security training annually."}
-            ][:k]
-            obs = f"Retrieved {len(results)} snippets"
-            return True, obs, {"results": results}, int((time.time() - t0) * 1000)
+            query_text = args.get("query", "")
+            k = int(args.get("k",  5))
+
+            chroma_client = chromadb.PersistentClient(path = "./kb")
+
+            #embedding function
+            embedding_function = embedding_functions.OpenAiEmbeddingFunction(
+                api_key = os.getenv("OPENAI_API_KEY"),
+                model_name = "text-embedding-3-small"
+            )
+
+            # Load existing collection:
+            collection = chroma_client.get_collection(
+                name = "dataset_contexts",
+                embedding_function = embedding_function
+            )
+
+            #perform vector search
+            results = collection.query(
+                query_texts = [query_text],
+                n_results = k
+            )
+            
+            #extract / format results
+            docs = []
+
+            for i in range(len(results["ids"][0])):
+                docs.append({
+                    "doc_id": results["ids"][0][i],
+                    "snippet": results["documents"][0][i],
+                    "distance": results["distances"][0][i]
+                })
+
+            obs = f"Retrieved {len(docs)} snippets from ChromaDB"
+            return True, obs, {"results": docs}, int((time.time() - t0) * 1000)
         
         # STUDENT_COMPLETE --> you should add another tool here
         elif action == "serviceNow.getService":
