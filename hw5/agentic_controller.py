@@ -392,19 +392,17 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
     try:
         # Replace these with your real integrations
         if action == "weather.get_current":  # STUDENT_COMPLETE --> make this an actual weather API call
-            # Simulate an external API call to a weather service
-            # (In production, you would call your real weather API here.)
-           city = args["city"]
-           state = args["state"]
-           units = args.get("units", "imperial")
+            city = args["city"]
+            state = args["state"]
+            units = args.get("units", "imperial")
 
-           #API calls setup
-           NWS_API_BASE = "https//api.weather.gov"
-           USER_AGENT = "agentic-controller/1.0 (Educational Project)"
+            # API calls setup
+            NWS_API_BASE = "https://api.weather.gov"  # FIX: Added missing colon
+            USER_AGENT = "agentic-controller/1.0 (Educational Project)"
 
-           #Handling
-           #try:
-               #geocode location from city name (get longitude/ latitude)
+            # Handling
+            try:
+                # Geocode location from city name (get longitude/latitude)
                 nominatim_url = "https://nominatim.openstreetmap.org/search"
                 nominatim_headers = {"User-Agent": USER_AGENT}
                 nominatim_params = {
@@ -417,61 +415,54 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
 
                 geo_response = requests.get(
                     nominatim_url,
-                    params = nominatim_params,
-                    headers = nominatim_headers,
-                    timeout = 10
+                    params=nominatim_params,
+                    headers=nominatim_headers,
+                    timeout=10
                 )
                 geo_response.raise_for_status()
-                geo_data = geo_response.json() #get geo data to use
+                geo_data = geo_response.json()  # get geo data to use
 
-                #Error handling
+                # Error handling
                 if not geo_data:
                     error_msg = f"Location not found: {city}, {state}. Check spelling or state code."
                     return False, error_msg, {}, int((time.time() - t0) * 1000)
                 
-                #get Coordinates (from json)
+                # Get Coordinates (from json)
                 latitude = float(geo_data[0]["lat"])
                 longitude = float(geo_data[0]["lon"])
                 display_name = geo_data[0].get("display_name", f"{city}, {state}")
-
-                return (
-                    False,
-                    error_msg,
-                    {},
-                    int((time.time() - t0) * 1000)
-                )
            
-                #send coords to Forecast URL
+                # Send coords to Forecast URL
                 nws_headers = {
                     "User-Agent": USER_AGENT,
                     "Accept": "application/geo+json"
                 }
 
-                points_url = f"{NWS_API_BASE}/points/{lat:.4f},{lon:.4f}" #Ex: "https://api.weather.gov/points/30.4515,-91.1871"
-
-                points_response = requests.get(points_url, headers = nws_headers, timeout = 10)
+                points_url = f"{NWS_API_BASE}/points/{latitude:.4f},{longitude:.4f}"
+                
+                points_response = requests.get(points_url, headers=nws_headers, timeout=10)
                 points_response.raise_for_status()
                 points_data = points_response.json()
 
-                #extract forecase URL from points endpoint
+                # Extract forecast URL from points endpoint
                 forecast_url = points_data["properties"]["forecast"]
-                forecast_office = points_data["properties"]["cwa"] #weather office code
+                forecast_office = points_data["properties"]["cwa"]  # weather office code
 
-                #get actual weather forecase
-                forecast_response = requests.get(forecast_url, headers = nws_headers, timeout=10)
+                # Get actual weather forecast
+                forecast_response = requests.get(forecast_url, headers=nws_headers, timeout=10)
                 forecast_response.raise_for_status()
                 forecast_data = forecast_response.json()
 
-                #extract current forecast period
+                # Extract current forecast period
                 periods = forecast_data["properties"]["periods"]
                 if not periods:
                     return False, "No forecast data available for this location", {}, int((time.time() - t0) * 1000)
                 
                 current_period = periods[0]
 
-                #temperature unit conversion
-                temp_value = current_period["temperature"]      # e.g., 72
-                temp_unit = current_period["temperatureUnit"]  # "F" or "C"
+                # Temperature unit conversion
+                temp_value = current_period["temperature"]      # Example: 72
+                temp_unit = current_period["temperatureUnit"]  #Example:  "F" or "C"
                 
                 # Convert to metric if requested
                 if units == "metric" and temp_unit == "F":
@@ -481,14 +472,14 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
                     temp_value = round((temp_value * 9.0 / 5.0) + 32, 1)
                     temp_unit = "F"
 
-                #build payload:
+                # Build payload
                 payload = {
                     "location": {
                         "city": city,
                         "state": state,
                         "display_name": display_name,
-                        "latitude": round(lat, 4),
-                        "longitude": round(lon, 4),
+                        "latitude": round(latitude, 4), 
+                        "longitude": round(longitude, 4),
                         "nws_office": forecast_office
                     },
                     "current": {
@@ -513,7 +504,7 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
                         "forecast": period["shortForecast"]
                     })
 
-                #create consise obvservation for planner
+                # Create concise observation for planner
                 unit_symbol = "°F" if temp_unit == "F" else "°C"
                 obs = (
                     f"Weather in {city}, {state}: "
@@ -522,10 +513,27 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
                 )
                 
                 return True, obs, payload, int((time.time() - t0) * 1000)
-            # except requests.exceptions.Timeout:
-            #     return False, "Weather API request timed out. Try again.", {}, int((time.time() - t0) * 1000)
-                      
-           #get forecast from weather API
+            
+            # FIX: Added proper exception handling for the weather tool
+            except requests.exceptions.Timeout:
+                return False, "Weather API request timed out. Try again.", {}, int((time.time() - t0) * 1000)
+            
+            except requests.exceptions.RequestException as e:
+                error_msg = f"Weather API error: {type(e).__name__}"
+                if hasattr(e, 'response') and e.response is not None:
+                    if e.response.status_code == 404:
+                        error_msg = f"Weather data not available for {city}, {state}. Location may be outside NWS coverage."
+                    elif e.response.status_code == 500:
+                        error_msg = "National Weather Service API is temporarily unavailable."
+                return False, error_msg, {}, int((time.time() - t0) * 1000)
+            
+            except (KeyError, IndexError) as e:
+                error_msg = f"Failed to parse weather data: {str(e)}. The API response format may have changed."
+                return False, error_msg, {}, int((time.time() - t0) * 1000)
+            
+            except ValueError as e:
+                error_msg = f"Invalid coordinate data: {str(e)}"
+                return False, error_msg, {}, int((time.time() - t0) * 1000)
         
         elif action == "kb.search":  # STUDENT_COMPLETE --> make this a vector search over a Chroma database
             # Simulate a KB or vector database search
@@ -536,15 +544,34 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
             ][:k]
             obs = f"Retrieved {len(results)} snippets"
             return True, obs, {"results": results}, int((time.time() - t0) * 1000)
+        
         # STUDENT_COMPLETE --> you should add another tool here
-        elif action == "serviceNow.get_service":
-            #do action 
-            pass
+        elif action == "serviceNow.getService":
+            query = args["query"]
+            
+            # Mock ServiceNow service catalog
+            all_services = [
+                {"id": "SVC001", "name": "Password Reset Service", "category": "IT"},
+                {"id": "SVC002", "name": "VPN Access Request", "category": "IT"},
+                {"id": "SVC003", "name": "Software License Request", "category": "IT"}
+            ]
+            
+            # Search by query
+            query_lower = query.lower()
+            results = [s for s in all_services if query_lower in s["name"].lower()]
+            
+            if not results:
+                obs = f"No services found matching '{query}'"
+                return True, obs, {"services": []}, int((time.time() - t0) * 1000)
+            
+            obs = f"Found {len(results)} service(s) matching '{query}'"
+            return True, obs, {"services": results}, int((time.time() - t0) * 1000)
+        
         else:
-            # Safety: no executor wired for this tool
             return False, f"No executor bound for tool: {action}", {}, int((time.time() - t0) * 1000)
 
     except Exception as e:
+        # FIX: Uncommented this - it's critical for catching unexpected errors
         # Non-transient or unexpected error
         return False, f"Tool error: {type(e).__name__}: {e}", {}, int((time.time() - t0) * 1000)
 
