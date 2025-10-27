@@ -528,10 +528,13 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
             query_text = args.get("query", "")
             k = int(args.get("k",  5))
 
+            if not query_text:
+                return False, "No query provided for kb.search", {}, int((time.time() - t0))
+
             chroma_client = chromadb.PersistentClient(path = "./kb")
 
             #embedding function
-            embedding_function = embedding_functions.OpenAiEmbeddingFunction(
+            embedding_function = embedding_functions.OpenAIEmbeddingFunction(
                 api_key = os.getenv("OPENAI_API_KEY"),
                 model_name = "text-embedding-3-small"
             )
