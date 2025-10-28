@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize FastMCP server with unique name
-mcp = FastMCP("pto-bot")
+mcp = FastMCP("pto-bot") #not secure/ on http rn
 
 # Constants - OpenRouter API Configuration
 API_BASE = "https://openrouter.ai/api/v1"
