@@ -21,8 +21,22 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.sessions = {}  # Store multiple server sessions: {name: session}
         self.server_info = {}  # Store server metadata: {name: {tools, transport}}
-        self.conversation_history = []  # Stores all messages (temp, will be database eventually (maybe make .json))
-
+        # Stores all messages (temp, will be database eventually (maybe make .json))
+        self.conversation_history = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a tool calling assistant serving as the host (orchestrator) of an MCP system. "
+                    "You MUST respond to any user input by selecting and calling one or more tools from available tools. "
+                    "Outside of tool calls for response data, you can only respond enough to facilitate and maintain a human-like conversation"
+                    "with the user related to the tool calls."
+                    "Format final answers or explanations in natural language. "
+                    "If no tool is relevant, ask clarifying questions, or after 3 attempts refer to HR. "
+                    "Do NOT include any regular text messages or commentary(that is, don't answer anything on your own,"
+                    "answer it with a tool call whenever possible)."
+                ),
+            }
+        ]
 
     async def connect_to_server(self, name: str, server_script_path: str):
         """Connect to an MCP server and register it with a name.
@@ -39,9 +53,9 @@ class MCPClient:
 
         # Set up server parameters
         server_params = StdioServerParameters(
-            command="python3",
-            args=[server_script_path],
-            env=None
+            command = "python3",
+            args = [server_script_path],
+            env = None
         )
 
         # Launch server and create communication streams
@@ -119,7 +133,7 @@ class MCPClient:
     async def process_query(self, query: str) -> str:
         """Process a query using OpenAI with all available tools from all servers.
         
-        ✨ NOW WITH CONTEXT: Maintains conversation history across queries.
+        Maintains conversation history across queries.
         
         Args:
             query: User's question or request
@@ -127,7 +141,7 @@ class MCPClient:
         Returns:
             Final response from OpenAI
         """
-        # ✨ Add user's new message to existing conversation history
+        # Add users' new message to existing conversation history
         self.conversation_history.append({
             "role": "user",
             "content": query
