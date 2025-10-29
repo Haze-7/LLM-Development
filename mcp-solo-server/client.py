@@ -85,7 +85,7 @@ class MCPClient:
         }
         
         tool_names = [tool.name for tool in tools]
-        print(f"✅ {name} connected with tools: {tool_names}")
+        print(f"{name} connected with tools: {tool_names}")
 
     async def get_all_tools(self) -> list[dict]:
         """Gather all tools from all connected servers for OpenAI."""
