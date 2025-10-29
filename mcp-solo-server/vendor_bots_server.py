@@ -771,7 +771,7 @@ def main():
     print("VENDOR BOTS MCP SERVER")
     print("=" * 60)
     print(f"AI Model: {MODEL_PROVIDER.get_provider_name()}")
-    print(f"OnSpring: {'✓ Connected' if ONSPRING_DATA.enabled else '✗ Not configured (using mock data)'}")
+    print(f"OnSpring: {'Connected' if ONSPRING_DATA.enabled else 'Not configured (using mock data)'}")
     
     if ONSPRING_DATA.enabled:
         print(f"OnSpring API: {ONSPRING_DATA.api_base}")

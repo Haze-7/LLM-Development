@@ -49,7 +49,7 @@ class MCPClient:
         if not server_script_path.endswith(".py"):
             raise ValueError("Server script must be a .py file")
 
-        print(f"\n🔌 Connecting to {name}...")
+        print(f"\n Connecting to {name}...")
 
         # Set up server parameters
         server_params = StdioServerParameters(
@@ -118,7 +118,7 @@ class MCPClient:
         for server_name, info in self.server_info.items():
             tool_names = [t.name for t in info["tools"]]
             if tool_name in tool_names:
-                print(f"  📡 Routing to {server_name}")
+                print(f"    Routing to {server_name}")
                 session = self.sessions[server_name]
                 return await session.call_tool(tool_name, tool_args)
         
@@ -187,7 +187,7 @@ class MCPClient:
                 except json.JSONDecodeError:
                     tool_args = {}
                 
-                print(f"\n🔧 Calling tool: {tool_name}")
+                print(f"\n: {tool_name}")
                 print(f"   Arguments: {tool_args}")
 
                 # Call the tool via appropriate MCP server
@@ -220,6 +220,8 @@ class MCPClient:
 
         # Return final response
         return final_response
+    
+
     async def chat_loop(self):
         """Run an interactive chat loop with access to all connected servers."""
         print("\n" + "="*60)
@@ -242,7 +244,7 @@ class MCPClient:
                 
                 print("\nProcessing...")
                 response = await self.process_query(query)
-                print(f"\n✨ Response:\n{response}")
+                print(f"\nResponse:\n{response}")
                 
             except KeyboardInterrupt:
                 print("\n\nGoodbye!")
@@ -287,29 +289,29 @@ if __name__ == "__main__":
 
 #run Commands setup:
 """
-python client.py policy_bot_server.py pto_bot_server.py
+python client.py vendor_bots_server.py
 
-Laptop: python3 client.py policy_bot_server.py pto_bot_server.py
+Laptop: python3 client.py vendor_bots_server.py
 ```
 
 ### Step 3: Test it out!
 
 **Example conversations:**
 ```
-💬 Query: What's the company's remote work policy?
+    Query: What's the company's remote work policy?
 # → GPT routes to ask_policy_bot
 # → Policy Bot (Qwen) explains remote work policies
 
-💬 Query: How many vacation days do I have left?
+    Query: How many vacation days do I have left?
 # → GPT routes to ask_pto_bot
 # → PTO Bot responds (general or asks for employee ID)
 
-💬 Query: Check PTO for employee EMP001
+    Query: Check PTO for employee EMP001
 # → GPT routes to ask_pto_bot with employee_id="EMP001"
 # → PTO Bot returns: "John Doe has 15.5 days remaining"
 ```
 
-## 🎯 Key Features:
+## Key Features:
 
 ### Intelligent Routing
 gpt-5-nano sees both tools and automatically picks the right one based on:
