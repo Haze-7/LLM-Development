@@ -123,7 +123,7 @@ async def get_policy_context() -> str:
     #     return ""
     
     #  policy_data = await ONSPRING_DATA.get_policy_data()
-    #policy_data = mock_data
+    policy_data = {}
     # if not policy_data:
     #     return ""
     
@@ -168,9 +168,9 @@ async def ask_policy_bot(question: str, include_onspring_data: bool = True) -> s
     catalog_context = ""
     policy_context = ""
     
-    if include_onspring_data and ONSPRING_DATA.enabled:
-        catalog_context = ONSPRING_DATA.get_catalog_context()
-        policy_context = await get_policy_context()
+    # if include_onspring_data and ONSPRING_DATA.enabled:
+    #     catalog_context = ONSPRING_DATA.get_catalog_context()
+    #     policy_context = await get_policy_context()
     
     system_prompt = f"""You are a company policy expert assistant. Your role is to answer questions about:
 - Company policies and guidelines
@@ -221,8 +221,8 @@ async def ask_pto_bot(question: str, employee_id: Optional[str] = None) -> str:
     
     # Get OnSpring catalog context
     catalog_context = ""
-    if ONSPRING_DATA.enabled:
-        catalog_context = ONSPRING_DATA.get_catalog_context()
+    # if ONSPRING_DATA.enabled:
+    #     catalog_context = ONSPRING_DATA.get_catalog_context()
     
     # Build context with PTO data
     pto_context = ""
@@ -276,7 +276,7 @@ Provide clear, helpful answers about time off."""
 async def list_available_tools() -> str:
     """List all available Vendor bot tools and their capabilities."""
     
-    onspring_status = "✓ Connected" if ONSPRING_DATA.enabled else "✗ Not configured (using mock data)"
+   # onspring_status = "✓ Connected" if ONSPRING_DATA.enabled else "✗ Not configured (using mock data)"
     
     return f"""
 VENDOR BOTS SERVER - Available Tools
@@ -298,14 +298,9 @@ VENDOR BOTS SERVER - Available Tools
 
 Configuration:
 - AI Model: {MODEL_PROVIDER.get_provider_name()}
-- OnSpring Data: {onspring_status}
-- OnSpring API Base: {ONSPRING_DATA.api_base}
 - Required: OPENROUTER_API_KEY
 - Optional: ONSPRING_API_KEY, ONSPRING_API_BASE
-
-OnSpring Tables Configured:
-{chr(10).join(f'  - {name}: {info["description"]}' for name, info in OnSpringAppCatalog.list_all_apps().items())}
-""".strip()
+"""
 
 
 # ============================================================================
@@ -318,17 +313,6 @@ def main():
     print("VENDOR BOTS MCP SERVER")
     print("=" * 60)
     print(f"AI Model: {MODEL_PROVIDER.get_provider_name()}")
-    print(f"OnSpring: {'Connected' if ONSPRING_DATA.enabled else 'Not configured (using mock data)'}")
-    
-    if ONSPRING_DATA.enabled:
-        print(f"OnSpring API: {ONSPRING_DATA.api_base}")
-        print(f"\nOnSpring Tables:")
-        for name, info in OnSpringAppCatalog.list_all_apps().items():
-            if isinstance(info['example_fields'], dict):
-                field_count = len(info['example_fields'])
-            else:
-                field_count = len(info['example_fields'])
-            print(f"  - {name}: {field_count} example fields")
     
     print("\n" + "=" * 60)
     print("Server ready!")
