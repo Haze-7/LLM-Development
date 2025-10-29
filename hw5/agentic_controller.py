@@ -88,14 +88,13 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "additionalProperties": False
     },
     #Tool 3: 
-    "serviceNow.getService": {
+    "pto.get_pto": {
         "type": "object",
-        "description": "Get information on available services related to user query.",
+        "description": "Get PTO (Paid Time Off) information for an employee.",
         "properties": {
-            "query": {"type": "string", "minLength": 3},
-            "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}
+            "employee_name": {"type": "string", "minLength": 1}
         },
-        "required": ["query"],
+        "required": ["employee_name"],
         "additionalProperties": False
     }
     # STUDENT_COMPLETE --> You need to add a new tool schema for your custom tool
@@ -107,7 +106,8 @@ TOOL_HINTS: Dict[str, Dict[str, Any]] = {
     "weather.get_current": {"avg_ms": 400, "avg_tokens": 50},
     "kb.search":           {"avg_ms": 120, "avg_tokens": 30},
     #add my own for tool 3
-    "serviceNow.getService": {"avg_ms": 5, "avg_tokens": 5}, #temp for now, need to update with testing
+    "pto.get_pto": {"avg_ms": 30, "avg_tokens": 25}
+
 }
 
 # Controller State -----------------------------------------------------------------------------------------------------
@@ -320,10 +320,11 @@ def plan_next_action(state: ControllerState) -> Tuple[str, Dict[str, Any], str]:
                 "kb.search": [
                     {"query": "VPN policy for contractors", "k": 3}
                 ],
-                #include my own for service bot (edit)
-                "serviceNow.get_service": [
-                    {"query": "password reset"},
-                    {"query": "VPN access"}
+                #include my own for pto bot
+                "pto.get_pto": [
+                    {"employee_name": "John Doe"},
+                    {"employee_name": "Jane Smith"},
+                    {"employee_name": "Chris Hansen"}
                 ],
             }.get(name, [])
         }
@@ -409,9 +410,9 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
             if not city or not isinstance(city, str):
                 return False, "city must be non-empty string", {}, int((time.time() - t0) * 1000)
             if not state or not isinstance(state, str):
-                return False, "state must be non-emoty string", {}, int((time.time() - t0) * 1000)
+                return False, "state must be non-empty string", {}, int((time.time() - t0) * 1000)
             if units not in ("metric", "imperial"):
-                return False, "units must be 'betric' or 'imperial'", {}, int((time.time() - t0) * 1000)
+                return False, "units must be 'metric' or 'imperial'", {}, int((time.time() - t0) * 1000)
 
             # API calls setup
             NWS_API_BASE = "https://api.weather.gov"
@@ -565,32 +566,63 @@ def execute_action(action: str, args: Dict[str, Any]) -> Tuple[bool, str, Dict[s
             return True, obs, {"results": docs}, int((time.time() - t0) * 1000)
         
         # STUDENT_COMPLETE --> you should add another tool here
-        elif action == "serviceNow.getService":
-            query = args["query"]
+        elif action == "pto.get_pto":
+            employee_name = args.get("employee_name", "").strip()
             
-            # Mock ServiceNow service catalog
-            all_services = [
-                {"id": "SVC001", "name": "Password Reset Service", "category": "IT"},
-                {"id": "SVC002", "name": "VPN Access Request", "category": "IT"},
-                {"id": "SVC003", "name": "Software License Request", "category": "IT"}
-            ]
+            if not employee_name:
+                return False, "employee_name is required", {}, int((time.time() - t0) * 1000)
             
-            # Search by query
-            query_lower = query.lower()
-            results = [s for s in all_services if query_lower in s["name"].lower()]
+            # Mock PTO database
+            MOCK_PTO_DATA = {
+                "john doe": {
+                    "employee_name": "John Doe",
+                    "pto_days_remaining": 10,
+                    "pto_days_total": 20,
+                    "upcoming_pto": [
+                        {"dates": "Dec 20-27, 2025", "reason": "Holiday vacation", "status": "approved"},
+                        {"dates": "Nov 28-29, 2025", "reason": "Thanksgiving", "status": "approved"}
+                    ]
+                },
+                "jane smith": {
+                    "employee_name": "Jane Smith",
+                    "pto_days_remaining": 12,
+                    "pto_days_total": 15,
+                    "upcoming_pto": [
+                        {"dates": "Nov 15-17, 2025", "reason": "Personal matters", "status": "approved"},
+                        {"dates": "Dec 24-26, 2025", "reason": "Christmas holiday", "status": "pending"}
+                    ]
+                },
+                "mike johnson": {
+                    "employee_name": "Mike Johnson",
+                    "pto_days_remaining": 17,
+                    "pto_days_total": 20,
+                    "upcoming_pto": [
+                        {"dates": "Oct 10-12, 2025", "reason": "Family wedding", "status": "approved"}
+                    ]
+                },
+                "sarah williams": {
+                    "employee_name": "Sarah Williams",
+                    "pto_days_remaining": 20,
+                    "pto_days_total": 25,
+                    "upcoming_pto": [
+                        {"dates": "Sep 1-5, 2025", "reason": "Summer vacation", "status": "approved"},
+                        {"dates": "Dec 15-22, 2025", "reason": "Winter break", "status": "pending"}
+                    ]
+                }
+            }
             
-            if not results:
-                obs = f"No services found matching '{query}'"
-                return True, obs, {"services": []}, int((time.time() - t0) * 1000)
+            # Look up employee
+            emp_key = employee_name.lower()
+            if emp_key not in MOCK_PTO_DATA:
+                return False, f"No PTO data found for {employee_name}", {}, int((time.time() - t0) * 1000)
             
-            obs = f"Found {len(results)} service(s) matching '{query}'"
-            return True, obs, {"services": results}, int((time.time() - t0) * 1000)
-        
-        else:
-            return False, f"No executor bound for tool: {action}", {}, int((time.time() - t0) * 1000)
+            # Return employee data
+            emp_data = MOCK_PTO_DATA[emp_key]
+            obs = f"{emp_data['employee_name']} has {emp_data['pto_days_remaining']} PTO days remaining"
+            
+            return True, obs, emp_data, int((time.time() - t0) * 1000)
 
     except Exception as e:
-        # FIX: Uncommented this - it's critical for catching unexpected errors
         # Non-transient or unexpected error
         return False, f"Tool error: {type(e).__name__}: {e}", {}, int((time.time() - t0) * 1000)
 
@@ -701,11 +733,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    query = args.query
 
 
     # Example end-to-end run:
     # The planner can choose to look up weather, search a KB, and then synthesize an answer.
-    goal = "What's the current weather in Paris (metric) and do I need VPN for remote access?"
+    #goal = "What's the current weather in Paris (metric) and do I need VPN for remote access?"
+    goal = query
     print("\n--- Running Agent ---\n")
     answer = run_agent(goal)
     print("\n--- Final Answer ---\n")
